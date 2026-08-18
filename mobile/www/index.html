@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Todo</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="bg-blobs" aria-hidden="true">
+    <span class="blob blob-1"></span>
+    <span class="blob blob-2"></span>
+    <span class="blob blob-3"></span>
+  </div>
+
+  <main class="app">
+    <header class="app-header">
+      <h1>
+        <span class="logo-icon">✓</span>
+        <span>Todo</span>
+      </h1>
+      <button id="themeToggle" class="icon-btn" title="Toggle theme" aria-label="Toggle theme">
+        <span class="theme-icon">🌙</span>
+      </button>
+    </header>
+
+    <div class="progress-wrap" aria-hidden="true">
+      <div class="progress-track">
+        <div id="progressBar" class="progress-bar"></div>
+      </div>
+      <span id="progressLabel" class="progress-label">0 / 0 done</span>
+    </div>
+
+    <form id="todoForm" class="todo-form" autocomplete="off">
+      <div class="input-wrap">
+        <input
+          id="todoInput"
+          type="text"
+          placeholder="What needs to be done?"
+          maxlength="200"
+          required
+        />
+        <span class="input-underline"></span>
+      </div>
+      <button type="submit" class="add-btn" aria-label="Add task">
+        <span class="plus">+</span>
+      </button>
+    </form>
+
+    <div class="filters" role="tablist">
+      <button class="filter-btn active" data-filter="all" role="tab" aria-selected="true">All</button>
+      <button class="filter-btn" data-filter="active" role="tab" aria-selected="false">Active</button>
+      <button class="filter-btn" data-filter="completed" role="tab" aria-selected="false">Completed</button>
+      <span class="filter-pill" aria-hidden="true"></span>
+    </div>
+
+    <ul id="todoList" class="todo-list"></ul>
+
+    <p id="emptyState" class="empty-state">
+      <span class="empty-icon">🗒️</span>
+      <span>Nothing here yet. Add your first task!</span>
+    </p>
+
+    <footer class="app-footer">
+      <span id="itemsLeft">0 items left</span>
+      <button id="clearCompleted" class="link-btn">Clear completed</button>
+    </footer>
+  </main>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="script.js"></script>
+</body>
+</html>

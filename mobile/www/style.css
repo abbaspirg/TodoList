@@ -1,0 +1,591 @@
+:root {
+  --bg: #f4f5fb;
+  --surface: rgba(255, 255, 255, 0.75);
+  --surface-solid: #ffffff;
+  --text: #1e2130;
+  --text-dim: #6b7080;
+  --border: rgba(30, 33, 48, 0.08);
+  --accent: #7c5cff;
+  --accent-2: #ff6fa8;
+  --accent-3: #34d1c2;
+  --danger: #ff5470;
+  --shadow: 0 10px 30px rgba(60, 60, 120, 0.12);
+  --radius: 18px;
+  color-scheme: light;
+}
+
+[data-theme="dark"] {
+  --bg: #12111c;
+  --surface: rgba(30, 28, 46, 0.65);
+  --surface-solid: #1c1a2b;
+  --text: #f1f1f8;
+  --text-dim: #9895ab;
+  --border: rgba(255, 255, 255, 0.08);
+  --accent: #9b82ff;
+  --accent-2: #ff8fbb;
+  --accent-3: #4be3d3;
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 48px 16px;
+  overflow-x: hidden;
+  transition: background 0.4s ease, color 0.4s ease;
+}
+
+/* ---------- Animated background blobs ---------- */
+.bg-blobs {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(60px);
+  opacity: 0.35;
+  will-change: transform;
+}
+
+.blob-1 {
+  width: 380px;
+  height: 380px;
+  background: var(--accent);
+  top: -100px;
+  left: -100px;
+  animation: float1 16s ease-in-out infinite;
+}
+
+.blob-2 {
+  width: 320px;
+  height: 320px;
+  background: var(--accent-2);
+  bottom: -80px;
+  right: -60px;
+  animation: float2 20s ease-in-out infinite;
+}
+
+.blob-3 {
+  width: 260px;
+  height: 260px;
+  background: var(--accent-3);
+  top: 40%;
+  right: 15%;
+  animation: float3 18s ease-in-out infinite;
+}
+
+@keyframes float1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(60px, 80px) scale(1.15); }
+}
+
+@keyframes float2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-50px, -60px) scale(1.1); }
+}
+
+@keyframes float3 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-40px, 50px) scale(0.9); }
+}
+
+/* ---------- App shell ---------- */
+.app {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 520px;
+  background: var(--surface);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 28px 26px 22px;
+  animation: appIn 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes appIn {
+  from { opacity: 0; transform: translateY(24px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.app-header h1 {
+  margin: 0;
+  font-size: 1.6rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  letter-spacing: -0.02em;
+}
+
+.logo-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  color: white;
+  font-size: 1rem;
+  box-shadow: 0 6px 16px rgba(124, 92, 255, 0.4);
+  animation: pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 0.15s both;
+}
+
+@keyframes pop {
+  from { transform: scale(0.5) rotate(-20deg); opacity: 0; }
+  to { transform: scale(1) rotate(0); opacity: 1; }
+}
+
+.icon-btn {
+  border: none;
+  background: var(--surface-solid);
+  border: 1px solid var(--border);
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.icon-btn:hover {
+  transform: rotate(-15deg) scale(1.08);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+}
+
+.icon-btn:active {
+  transform: scale(0.92);
+}
+
+/* ---------- Progress ---------- */
+.progress-wrap {
+  margin-bottom: 20px;
+}
+
+.progress-track {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--border);
+  overflow: hidden;
+  position: relative;
+}
+
+.progress-bar {
+  height: 100%;
+  width: 0%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-3));
+  transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+  position: relative;
+}
+
+.progress-bar::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.5), transparent);
+  animation: shimmer 2.2s linear infinite;
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.progress-label {
+  display: inline-block;
+  margin-top: 8px;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+}
+
+/* ---------- Form ---------- */
+.todo-form {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.input-wrap {
+  position: relative;
+  flex: 1;
+}
+
+#todoInput {
+  width: 100%;
+  padding: 13px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface-solid);
+  color: var(--text);
+  font-size: 0.95rem;
+  outline: none;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease, transform 0.15s ease;
+}
+
+#todoInput:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px rgba(124, 92, 255, 0.15);
+}
+
+#todoInput::placeholder {
+  color: var(--text-dim);
+}
+
+.add-btn {
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  border-radius: 12px;
+  border: none;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  color: white;
+  font-size: 1.3rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6px 16px rgba(124, 92, 255, 0.35);
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease;
+}
+
+.add-btn .plus {
+  transition: transform 0.3s ease;
+  line-height: 1;
+}
+
+.add-btn:hover {
+  transform: translateY(-2px) scale(1.05);
+  box-shadow: 0 10px 22px rgba(124, 92, 255, 0.45);
+}
+
+.add-btn:hover .plus {
+  transform: rotate(90deg);
+}
+
+.add-btn:active {
+  transform: scale(0.9);
+}
+
+/* ---------- Filters ---------- */
+.filters {
+  position: relative;
+  display: flex;
+  gap: 4px;
+  background: var(--surface-solid);
+  border: 1px solid var(--border);
+  padding: 4px;
+  border-radius: 12px;
+  margin-bottom: 18px;
+}
+
+.filter-btn {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  padding: 8px 0;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  font-weight: 600;
+  border-radius: 9px;
+  cursor: pointer;
+  transition: color 0.3s ease;
+}
+
+.filter-btn.active {
+  color: white;
+}
+
+.filter-pill {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: calc((100% - 8px) / 3);
+  height: calc(100% - 8px);
+  border-radius: 9px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  transition: transform 0.35s cubic-bezier(0.65, 0, 0.35, 1);
+  box-shadow: 0 4px 12px rgba(124, 92, 255, 0.35);
+}
+
+/* ---------- List ---------- */
+.todo-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 10px;
+}
+
+.todo-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 14px;
+  background: var(--surface-solid);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  animation: itemIn 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+  transition: transform 0.25s ease, box-shadow 0.25s ease, opacity 0.3s ease, background 0.3s ease;
+  cursor: default;
+}
+
+.todo-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(30, 30, 60, 0.08);
+}
+
+.todo-item.removing {
+  animation: itemOut 0.32s cubic-bezier(0.55, 0, 0.55, 0.2) forwards;
+}
+
+@keyframes itemIn {
+  from { opacity: 0; transform: translateY(-10px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes itemOut {
+  to { opacity: 0; transform: translateX(40px) scale(0.9); height: 0; padding: 0; margin: 0; border-width: 0; }
+}
+
+.checkbox {
+  position: relative;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid var(--accent);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.15s ease, background 0.25s ease;
+  background: transparent;
+}
+
+.checkbox:active {
+  transform: scale(0.85);
+}
+
+.checkbox svg {
+  width: 13px;
+  height: 13px;
+  stroke: white;
+  stroke-width: 3;
+  fill: none;
+  stroke-dasharray: 20;
+  stroke-dashoffset: 20;
+  transition: stroke-dashoffset 0.3s ease 0.05s;
+}
+
+.todo-item.completed .checkbox {
+  background: linear-gradient(135deg, var(--accent), var(--accent-3));
+  border-color: transparent;
+  animation: checkPop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.todo-item.completed .checkbox svg {
+  stroke-dashoffset: 0;
+}
+
+@keyframes checkPop {
+  0% { transform: scale(0.8); }
+  50% { transform: scale(1.2); }
+  100% { transform: scale(1); }
+}
+
+.todo-text {
+  flex: 1;
+  font-size: 0.95rem;
+  word-break: break-word;
+  position: relative;
+  transition: color 0.3s ease;
+}
+
+.todo-item.completed .todo-text {
+  color: var(--text-dim);
+}
+
+.todo-text::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  height: 2px;
+  width: 0%;
+  background: var(--text-dim);
+  transition: width 0.35s ease;
+}
+
+.todo-item.completed .todo-text::after {
+  width: 100%;
+}
+
+.todo-text[contenteditable="true"] {
+  outline: none;
+  border-bottom: 1px dashed var(--accent);
+}
+
+.item-actions {
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transform: translateX(6px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.todo-item:hover .item-actions,
+.todo-item:focus-within .item-actions {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.item-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 0.95rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s ease, color 0.2s ease, transform 0.15s ease;
+}
+
+.item-btn:hover {
+  background: var(--border);
+  color: var(--text);
+  transform: scale(1.1);
+}
+
+.item-btn.delete:hover {
+  color: var(--danger);
+}
+
+/* ---------- Empty state ---------- */
+.empty-state {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 0.9rem;
+  padding: 30px 0 10px;
+  animation: fadeIn 0.5s ease both;
+}
+
+.empty-state.show {
+  display: flex;
+}
+
+.empty-icon {
+  font-size: 2rem;
+  animation: sway 3s ease-in-out infinite;
+}
+
+@keyframes sway {
+  0%, 100% { transform: rotate(-6deg); }
+  50% { transform: rotate(6deg); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* ---------- Footer ---------- */
+.app-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
+.link-btn {
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 0.8rem;
+  transition: color 0.2s ease;
+}
+
+.link-btn:hover {
+  color: var(--danger);
+  text-decoration: underline;
+}
+
+/* ---------- Toast ---------- */
+.toast {
+  position: fixed;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: var(--surface-solid);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 10px 18px;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  box-shadow: var(--shadow);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  z-index: 10;
+}
+
+.toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+@media (max-width: 480px) {
+  .app {
+    padding: 22px 18px 18px;
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "name": "todo-mobile",
+  "version": "1.0.0",
+  "description": "Android app wrapper for the Todo web app, built with Capacitor.",
+  "private": true,
+  "scripts": {
+    "sync": "cap sync android",
+    "assets": "capacitor-assets generate --android",
+    "open:android": "cap open android"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/cli": "^8.5.0",
+    "@capacitor/core": "^8.5.0"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^3.0.5"
+  }
+}
