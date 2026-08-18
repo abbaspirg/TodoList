@@ -13,6 +13,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
 
@@ -29,7 +30,12 @@ jobs:
       - run: flutter pub get
 
       - name: Generate freezed/json_serializable code
-        run: dart run build_runner build --delete-conflicting-outputs
+        # --verbose so a hang leaves a log trail instead of a silent
+        # multi-minute black box; explicit timeout so a real hang fails
+        # fast with the job's logs still downloadable (in-progress job
+        # logs return 404 until the job ends).
+        timeout-minutes: 10
+        run: dart run build_runner build --delete-conflicting-outputs --verbose
 
       - name: Build debug APK
         run: flutter build apk --debug
