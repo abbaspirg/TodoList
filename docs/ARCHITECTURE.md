@@ -5,7 +5,7 @@
 A cross-platform mobile app (plain HTML/CSS/JS wrapped natively via Capacitor, one
 codebase for Android + iOS + web) that runs a Meelad Fest (Islamic cultural/arts
 competition) end-to-end: registering students into
-two competing Groups, defining categories and competition items, registering
+competing Groups (most often 2, but any number is supported), defining categories and competition items, registering
 participants, letting judges score participants live, computing results/rankings,
 tracking the overall Group vs Group score, and auto-generating shareable result
 posters.
@@ -87,7 +87,7 @@ mobile/                       # the Capacitor project — see mobile/README-like
         admin-results.js                              # publish results, jump to poster generator
         judge-queue.js                                  # items assigned to this judge
         judge-scoring.js                                  # live participant list + marks entry
-        public-leaderboard.js                               # live Group A vs Group B total
+        public-leaderboard.js                               # live per-group grand total
         public-results.js                                     # 1st/2nd/3rd per item
         poster.js                                               # canvas poster + download/share
 functions/                    # Cloud Functions (TypeScript) — same regardless of client framework

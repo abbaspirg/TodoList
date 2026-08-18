@@ -49,3 +49,38 @@ export function mount(...children) {
   view.replaceChildren(...children);
   return view;
 }
+
+/** Downscales an <input type="file"> image to a <canvas> capped at maxDim
+ * on its longest side — used before every student photo upload so neither
+ * Cloud Storage nor (especially) localStorage's ~5-10MB quota in Local Test
+ * Mode has to hold a full-resolution phone photo for a small poster/avatar
+ * image. Callers turn the canvas into whatever the active backend needs
+ * (a Blob for Storage, a data URL for localStorage) — see
+ * js/data-firestore.js and js/data-local.js uploadStudentPhoto(). */
+export function resizeImageFile(file, maxDim = 480) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error);
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = reject;
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > height && width > maxDim) {
+          height = Math.round((height * maxDim) / width);
+          width = maxDim;
+        } else if (height >= width && height > maxDim) {
+          width = Math.round((width * maxDim) / height);
+          height = maxDim;
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+        resolve(canvas);
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}

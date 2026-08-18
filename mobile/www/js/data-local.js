@@ -17,8 +17,14 @@ export function watchGroups(_festId, cb) {
 export function watchGroupTotals(_festId, cb) {
   return subscribe("groupTotals", cb);
 }
+export async function addGroup(_festId, group) {
+  upsert("groups", { ...group, id: group.id || genId() });
+}
 export async function updateGroup(_festId, group) {
   upsert("groups", group);
+}
+export async function deleteGroup(_festId, groupId) {
+  remove("groups", groupId);
 }
 
 // --- Categories ---------------------------------------------------------
@@ -47,6 +53,12 @@ export async function updateStudent(_festId, student) {
 }
 export async function deleteStudent(_festId, studentId) {
   remove("students", studentId);
+}
+export async function uploadStudentPhoto(_festId, _studentId, canvas) {
+  // No Storage backend locally — the resized photo is stored inline as a
+  // data URL. Fine at the small size util.js's resizeImageFile produces;
+  // not meant for hundreds of students (localStorage has a ~5-10MB quota).
+  return canvas.toDataURL("image/jpeg", 0.82);
 }
 
 // --- Items ------------------------------------------------------------------

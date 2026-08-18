@@ -12,7 +12,9 @@ function impl() {
 
 export const watchGroups = (...args) => impl().watchGroups(...args);
 export const watchGroupTotals = (...args) => impl().watchGroupTotals(...args);
+export const addGroup = (...args) => impl().addGroup(...args);
 export const updateGroup = (...args) => impl().updateGroup(...args);
+export const deleteGroup = (...args) => impl().deleteGroup(...args);
 
 export const watchCategories = (...args) => impl().watchCategories(...args);
 export const addCategory = (...args) => impl().addCategory(...args);
@@ -23,6 +25,7 @@ export const watchStudents = (...args) => impl().watchStudents(...args);
 export const addStudent = (...args) => impl().addStudent(...args);
 export const updateStudent = (...args) => impl().updateStudent(...args);
 export const deleteStudent = (...args) => impl().deleteStudent(...args);
+export const uploadStudentPhoto = (...args) => impl().uploadStudentPhoto(...args);
 
 export const watchItems = (...args) => impl().watchItems(...args);
 export const watchItem = (...args) => impl().watchItem(...args);

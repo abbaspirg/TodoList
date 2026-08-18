@@ -2,10 +2,11 @@
 
 A plain HTML/CSS/JS mobile app (wrapped natively via Capacitor, same "no
 build step" approach as this repo's earlier Todo app) + Firebase, for
-running a Madrasa Meelad Fest end-to-end: register students into 2
-competing Groups, define categories and competition items, register
-participants, let judges score live, compute item-wise results and the
-overall Group grand total, and auto-generate shareable result posters.
+running a Madrasa Meelad Fest end-to-end: register students into
+competing Groups (any number, most often 2), define categories and
+competition items, register participants, let judges score live, compute
+item-wise results and each Group's grand total, and auto-generate
+shareable result posters with the winner's photo.
 
 ## Documentation
 

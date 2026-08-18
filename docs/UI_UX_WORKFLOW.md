@@ -38,12 +38,12 @@ flowchart LR
     Reg --> RegForm[Register Student to Item<br/>pick category -> item -> student -> chest no.]
     Judges --> JudgeForm[Add Judge + Assign to Item(s)]
     Results --> ItemResult[Item Result: 1st/2nd/3rd]
-    Results --> Leaderboard[Group A vs Group B totals]
+    Results --> Leaderboard[Per-Group grand totals]
     Results --> PosterGen[Generate Poster]
 ```
 
 **Dashboard** — top of the admin app: fest name/year, counts (students, items,
-completed vs pending), and a prominent live **Group A vs Group B** score bar
+completed vs pending), and a prominent live **per-Group** score bar
 (same widget reused on the public leaderboard). Quick actions: "Add Student",
 "Add Item", "Open Item for Scoring".
 
@@ -51,11 +51,10 @@ completed vs pending), and a prominent live **Group A vs Group B** score bar
 eligibility), swipe-to-edit, bulk CSV import for large enrollments (a real pain
 point at fest registration time), avatar photo capture via camera or gallery.
 
-**Groups screen** — exactly 2 cards (fixed cardinality, but editable), each
-showing name, color swatch, logo, and live student count / running score;
-tapping edits name/color/logo only (groups aren't created/deleted, just the two
-seeded at fest setup — this matches the "2 distinct Groups" requirement while
-still being configurable, e.g. renaming "Team A" to "Green Brigade").
+**Groups screen** — a plain add/edit/delete list, not a fixed pair: most fests
+run 2 competing groups (seeded by default — "Green Brigade" / "Golden Team"),
+but some run 3 or more, so Admin can add further groups the same way as
+Categories or Items. Each card edits name and color inline.
 
 **Categories screen** — simple reorderable list (Sub-Junior, Junior, Senior,
 Super Senior, ...), add/edit/delete, each with an age range used to filter
@@ -78,7 +77,7 @@ items via multi-select.
 **Results & Analytics** — per-item result cards (medal icons for 1st/2nd/3rd,
 participant name + photo + group), a "Publish" button (keeps unpublished
 results hidden from the public feed until Admin reviews), and the
-**Group Grand Total** view: a large comparative bar/donut of Group A vs Group B
+**Group Grand Total** view: a large comparative bar/donut across all Groups
 cumulative points, plus an item-wise contribution breakdown table.
 
 **Poster Generator** — reachable from a completed+published result: preview of
@@ -119,7 +118,7 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-    L[Live Leaderboard<br/>Group A vs Group B] --> R[Item Results List]
+    L[Live Leaderboard<br/>per-Group totals] --> R[Item Results List]
     R --> D[Item Detail<br/>1st/2nd/3rd + poster thumbnails]
     D --> Share[View/Download Poster]
 ```

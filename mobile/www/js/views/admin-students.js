@@ -1,5 +1,5 @@
-import { el, mount, initials, genId, toast } from "../util.js";
-import { watchStudents, watchGroups, addStudent, updateStudent } from "../data.js";
+import { el, mount, initials, genId, toast, resizeImageFile } from "../util.js";
+import { watchStudents, watchGroups, addStudent, updateStudent, uploadStudentPhoto } from "../data.js";
 import { FEST_ID } from "../firebase-config.js";
 
 export async function renderAdminStudents() {
@@ -70,6 +70,9 @@ export async function renderAdminStudents() {
   }
 
   function openForm(existing) {
+    const studentId = existing?.id || genId();
+    let pendingPhotoCanvas = null;
+
     const nameInput = el("input", { type: "text", value: existing?.name || "", required: true });
     const classInput = el("input", { type: "text", value: existing?.className || "" });
     const groupSelectField = el(
@@ -80,6 +83,24 @@ export async function renderAdminStudents() {
       ),
     );
 
+    const photoPreview = el(
+      "div",
+      { class: "avatar", style: "width:72px;height:72px;font-size:1.4rem" },
+      existing?.photoUrl ? el("img", { src: existing.photoUrl }) : initials(nameInput.value || "?"),
+    );
+    const photoInput = el("input", {
+      type: "file",
+      accept: "image/*",
+      onchange: async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        pendingPhotoCanvas = await resizeImageFile(file);
+        photoPreview.replaceChildren(el("img", { src: pendingPhotoCanvas.toDataURL("image/jpeg", 0.82) }));
+      },
+    });
+
+    const submitBtn = el("button", { class: "btn", type: "submit" }, "Save");
+
     formHost.replaceChildren(
       el(
         "form",
@@ -87,26 +108,38 @@ export async function renderAdminStudents() {
           class: "card",
           onsubmit: async (e) => {
             e.preventDefault();
-            const student = {
-              id: existing?.id || genId(),
-              festId: FEST_ID,
-              name: nameInput.value.trim(),
-              className: classInput.value.trim(),
-              groupId: groupSelectField.value,
-            };
-            if (!student.name || !student.groupId) return;
-            await (existing ? updateStudent(FEST_ID, student) : addStudent(FEST_ID, student));
-            toast(existing ? "Student updated" : "Student added");
-            formHost.replaceChildren();
+            const name = nameInput.value.trim();
+            const groupId = groupSelectField.value;
+            if (!name || !groupId) return;
+
+            submitBtn.disabled = true;
+            submitBtn.textContent = pendingPhotoCanvas ? "Uploading photo…" : "Saving…";
+            try {
+              const photoUrl = pendingPhotoCanvas
+                ? await uploadStudentPhoto(FEST_ID, studentId, pendingPhotoCanvas)
+                : existing?.photoUrl || null;
+              const student = { id: studentId, festId: FEST_ID, name, className: classInput.value.trim(), groupId, photoUrl };
+              await (existing ? updateStudent(FEST_ID, student) : addStudent(FEST_ID, student));
+              toast(existing ? "Student updated" : "Student added");
+              formHost.replaceChildren();
+            } catch (err) {
+              toast("Couldn't save photo — check your connection and try again.");
+              submitBtn.disabled = false;
+              submitBtn.textContent = "Save";
+            }
           },
         },
         [
           el("h2", { style: "margin-top:0" }, existing ? "Edit Student" : "Add Student"),
+          el("div", { class: "btn-row", style: "align-items:center;margin-bottom:12px" }, [
+            photoPreview,
+            photoInput,
+          ]),
           el("div", { class: "field" }, [el("label", {}, "Full name"), nameInput]),
           el("div", { class: "field" }, [el("label", {}, "Class"), classInput]),
           el("div", { class: "field" }, [el("label", {}, "Group"), groupSelectField]),
           el("div", { class: "btn-row" }, [
-            el("button", { class: "btn", type: "submit" }, "Save"),
+            submitBtn,
             el("button", { class: "btn secondary", type: "button", onclick: () => formHost.replaceChildren() }, "Cancel"),
           ]),
         ],

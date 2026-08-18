@@ -129,10 +129,11 @@ erDiagram
 
 ## 2. Field Notes
 
-- **`STUDENT.groupId`** — every student belongs to exactly one of the fest's 2
-  fixed groups (e.g. "Green Team" / "Golden Team"). Group is a first-class,
-  admin-editable entity (name/color/logo), not a hardcoded enum, so it can be
-  renamed per fest.
+- **`STUDENT.groupId`** — every student belongs to exactly one of the fest's
+  groups (typically 2, e.g. "Green Team" / "Golden Team", but any number is
+  supported). Group is a first-class, admin-managed entity (name/color),
+  created/renamed/deleted per fest like Category or Item, not a hardcoded
+  enum.
 - **`ITEM.type`** — `individual` | `group` (some Meelad items, e.g. group
   songs/Mappila Paattu, register a *team* of students as one participant entry).
 - **`ITEM.stageType`** — `stage` | `off-stage`, common Meelad-fest distinction

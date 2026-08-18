@@ -5,6 +5,7 @@
 // equivalent. Views only ever import js/data.js, never this file directly.
 import {
   db,
+  storage,
   collection,
   doc,
   setDoc,
@@ -15,11 +16,16 @@ import {
   where,
   orderBy,
   serverTimestamp,
+  storageRef,
+  uploadBytes,
+  getDownloadURL,
   FIREBASE_SDK_CDN,
 } from "./firebase.js";
 import { genId } from "./util.js";
 
 // --- Groups -----------------------------------------------------------
+// A fest can have any number of groups (commonly 2, but some fests run 3+
+// teams) — Group is a plain admin-managed collection, not a fixed pair.
 export function watchGroups(festId, cb) {
   return onSnapshot(collection(db, "fests", festId, "groups"), (snap) =>
     cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
@@ -30,8 +36,15 @@ export function watchGroupTotals(festId, cb) {
     cb(snap.docs.map((d) => ({ groupId: d.id, ...d.data() }))),
   );
 }
+export async function addGroup(festId, group) {
+  const id = group.id || genId();
+  await setDoc(doc(db, "fests", festId, "groups", id), { ...group, id });
+}
 export async function updateGroup(festId, group) {
   await updateDoc(doc(db, "fests", festId, "groups", group.id), group);
+}
+export async function deleteGroup(festId, groupId) {
+  await deleteDoc(doc(db, "fests", festId, "groups", groupId));
 }
 
 // --- Categories ---------------------------------------------------------
@@ -71,6 +84,12 @@ export async function updateStudent(festId, student) {
 }
 export async function deleteStudent(festId, studentId) {
   await deleteDoc(doc(db, "fests", festId, "students", studentId));
+}
+export async function uploadStudentPhoto(_festId, studentId, canvas) {
+  const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.82));
+  const ref = storageRef(storage, `students/${studentId}.jpg`);
+  await uploadBytes(ref, blob, { contentType: "image/jpeg" });
+  return getDownloadURL(ref);
 }
 
 // --- Items ------------------------------------------------------------------
