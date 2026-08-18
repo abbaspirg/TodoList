@@ -22,17 +22,44 @@ function seedDefaults() {
   };
 }
 
+// One-off repair for data written by a shipped bug: data-local.js's
+// publishResult() used to upsert `{ itemId, published: true }` without an
+// `id` field, which upsert() (below) matches existing docs on — so it
+// never found the real result doc and pushed a second, empty one instead
+// of publishing the first. Merges any `results` sharing an itemId back
+// into one doc so devices that already hit this don't need a manual
+// "Reset local data" to see their real, already-computed results.
+function dedupeResults(db) {
+  const byKey = new Map();
+  for (const r of db.results || []) {
+    const key = r.itemId || r.id;
+    if (!key) continue;
+    const prior = byKey.get(key);
+    byKey.set(key, {
+      ...prior,
+      ...r,
+      id: key,
+      itemId: key,
+      published: Boolean(prior?.published || r.published),
+    });
+  }
+  db.results = [...byKey.values()];
+  return db;
+}
+
 function load() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     const parsed = raw ? JSON.parse(raw) : null;
-    return { ...seedDefaults(), ...parsed };
+    return dedupeResults({ ...seedDefaults(), ...parsed });
   } catch {
     return seedDefaults();
   }
 }
 
 let db = load();
+persist(); // save the dedupe pass above so a device that hit the bug is fixed for good, not just this session
+
 const listeners = new Map(); // collection name -> Set<callback>
 
 function persist() {

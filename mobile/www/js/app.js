@@ -91,12 +91,12 @@ function renderNav() {
 document.getElementById("signOutBtn").addEventListener("click", signOut);
 
 // --- Back button --------------------------------------------------------
-// Each role's own "home" screen has nowhere useful to go back to; every
-// other route gets a visible back button (mirrors the hardware/gesture
-// back button Capacitor's default Android template already wires to
-// WebView history — this just makes the same step reachable by tap, since
-// not every screen otherwise offers a way back without it).
-const HOME_PATHS = new Set(["/", "/login", "/admin", "/judge", "/public"]);
+// /login is the app's one true entry point with nowhere to go back to;
+// /admin and /judge are each role's home once signed in, where Sign Out is
+// the correct "leave" action, not back. Every other route — including
+// /public, reached from /login's "View live results" link — gets a
+// visible back button that steps back through the hash-router's history.
+const HOME_PATHS = new Set(["/", "/login", "/admin", "/judge"]);
 function updateBackButton() {
   const path = location.hash.slice(1) || "/";
   document.getElementById("backBtn").hidden = HOME_PATHS.has(path);

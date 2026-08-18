@@ -141,7 +141,11 @@ export function watchAllResults(_festId, cb) {
   return subscribe("results", cb);
 }
 export async function publishResult(_festId, itemId) {
-  upsert("results", { itemId, published: true });
+  // local-store's upsert() matches existing docs by `id`, not `itemId` —
+  // maybeFinalizeItem() below sets both to the same value, so this must
+  // too or it silently creates a second, empty result doc instead of
+  // publishing the real one (that was a real, shipped bug).
+  upsert("results", { id: itemId, itemId, published: true });
 }
 
 // --- Result computation (the local equivalent of functions/src/index.ts
