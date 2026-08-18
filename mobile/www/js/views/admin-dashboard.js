@@ -14,6 +14,7 @@ const NAV_TILES = [
   { href: "/admin/registrations", icon: "📝", label: "Registrations" },
   { href: "/admin/judges", icon: "⚖️", label: "Judges" },
   { href: "/admin/results", icon: "🏆", label: "Results & Analytics" },
+  { href: "/admin/settings", icon: "⚙️", label: "Settings" },
 ];
 
 export async function renderAdminDashboard() {

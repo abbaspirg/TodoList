@@ -6,9 +6,17 @@
 // accepted (for call-signature parity with the Firestore version) but not
 // used for partitioning — filtering below only applies the fields actually
 // relevant to that query.
-import { getAll, get, upsert, remove, subscribe } from "./local-store.js";
+import { getAll, get, upsert, remove, subscribe, subscribeSettings, updateSettings } from "./local-store.js";
 import { genId } from "./util.js";
 import { pointsForRank, gradeForMark, pointsForGrade } from "./point-system.js";
+
+// --- Fest settings (Madrasa name, shown on posters) ------------------------
+export function watchFestSettings(_festId, cb) {
+  return subscribeSettings(cb);
+}
+export async function updateFestSettings(_festId, settings) {
+  updateSettings(settings);
+}
 
 // --- Groups -----------------------------------------------------------
 export function watchGroups(_festId, cb) {

@@ -38,6 +38,7 @@ erDiagram
         string name
         int year
         string status
+        string madrasaName
     }
     GROUP {
         string id PK
@@ -129,6 +130,9 @@ erDiagram
 
 ## 2. Field Notes
 
+- **`FEST.madrasaName`** — set from Admin > Settings; shown on generated
+  posters in place of the generic "MEELAD FEST" app branding, so a poster
+  reflects the actual institution running the fest.
 - **`STUDENT.groupId`** — every student belongs to exactly one of the fest's
   groups (typically 2, e.g. "Green Team" / "Golden Team", but any number is
   supported). Group is a first-class, admin-managed entity (name/color),

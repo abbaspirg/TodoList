@@ -19,6 +19,7 @@ function seedDefaults() {
     registrations: [],
     scores: [],
     results: [],
+    settings: { madrasaName: "" },
   };
 }
 
@@ -98,6 +99,24 @@ export function upsert(name, item) {
   persist();
   notify(name);
   return db[name].find((x) => x.id === item.id);
+}
+
+// Fest settings (currently just the Madrasa's display name, shown on
+// generated posters) are a single object, not a list — kept separate from
+// upsert()/get() above rather than forcing them into the array shape.
+export function getSettings() {
+  return db.settings || {};
+}
+export function subscribeSettings(cb) {
+  if (!listeners.has("settings")) listeners.set("settings", new Set());
+  listeners.get("settings").add(cb);
+  Promise.resolve().then(() => cb(db.settings || {}));
+  return () => listeners.get("settings")?.delete(cb);
+}
+export function updateSettings(patch) {
+  db.settings = { ...(db.settings || {}), ...patch };
+  persist();
+  notify("settings");
 }
 
 export function remove(name, id) {

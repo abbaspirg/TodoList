@@ -10,6 +10,20 @@ function impl() {
   return isLocalMode() ? localImpl : firestoreImpl;
 }
 
+export const watchFestSettings = (...args) => impl().watchFestSettings(...args);
+export const updateFestSettings = (...args) => impl().updateFestSettings(...args);
+
+// One-shot read for callers (e.g. the poster generator) that just need the
+// current settings once rather than a live subscription.
+export function getFestSettings(festId) {
+  return new Promise((resolve) => {
+    const unsubscribe = impl().watchFestSettings(festId, (settings) => {
+      unsubscribe();
+      resolve(settings || {});
+    });
+  });
+}
+
 export const watchGroups = (...args) => impl().watchGroups(...args);
 export const watchGroupTotals = (...args) => impl().watchGroupTotals(...args);
 export const addGroup = (...args) => impl().addGroup(...args);

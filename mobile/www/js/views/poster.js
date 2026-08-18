@@ -1,4 +1,6 @@
 import { el, mount, initials, toast } from "../util.js";
+import { getFestSettings } from "../data.js";
+import { FEST_ID } from "../firebase-config.js";
 
 const MEDALS = { 1: "🥇", 2: "🥈", 3: "🥉" };
 const MEDAL_COLORS = { 1: "#d4af37", 2: "#b7bcc4", 3: "#c07a3c" };
@@ -45,6 +47,8 @@ export async function renderPoster() {
     return;
   }
   const isTop3 = data.mode === "top3";
+  const settings = await getFestSettings(FEST_ID);
+  const madrasaName = settings?.madrasaName || "";
 
   const canvas = el("canvas", { id: "posterCanvas", width: "720", height: isTop3 ? "1000" : "960" });
   const lightBtn = el("button", { class: "btn secondary" }, "☀️ Light");
@@ -68,8 +72,8 @@ export async function renderPoster() {
   async function redraw() {
     syncThemeButtons();
     const theme = THEMES[currentTheme];
-    if (isTop3) await drawTop3Poster(canvas, data.result, data.rankings, theme);
-    else await drawPoster(canvas, data.result, data.ranking, theme);
+    if (isTop3) await drawTop3Poster(canvas, data.result, data.rankings, theme, madrasaName);
+    else await drawPoster(canvas, data.result, data.ranking, theme, madrasaName);
   }
   await redraw();
 
@@ -204,17 +208,20 @@ function drawFrame(ctx, w, h, theme) {
   ctx.restore();
 }
 
-function drawBrandHeader(ctx, w, theme, topY) {
+// `madrasaName`, when set via Admin > Settings, replaces the generic
+// "MEELAD FEST" wordmark so the poster carries the actual institution's
+// name rather than static app branding.
+function drawBrandHeader(ctx, w, theme, topY, madrasaName) {
   ctx.textAlign = "center";
   ctx.font = "44px sans-serif";
   ctx.fillStyle = theme.textPrimary;
   ctx.fillText("🕌", w / 2, topY);
   ctx.font = "700 30px sans-serif";
   ctx.fillStyle = theme.gold;
-  ctx.fillText("MEELAD FEST", w / 2, topY + 44);
+  ctx.fillText(truncate(ctx, madrasaName || "MEELAD FEST", w - 160), w / 2, topY + 44);
   ctx.font = "16px sans-serif";
   ctx.fillStyle = theme.textMuted;
-  ctx.fillText("Madrasa Meelad Fest Manager", w / 2, topY + 68);
+  ctx.fillText(madrasaName ? "Meelad Fest Celebration" : "Madrasa Meelad Fest Manager", w / 2, topY + 68);
 }
 
 function roundRectPath(ctx, x, y, w, h, r) {
@@ -330,13 +337,13 @@ function truncate(ctx, text, maxWidth) {
 
 // ---- Single-winner poster ---------------------------------------------------
 
-async function drawPoster(canvas, result, ranking, theme) {
+async function drawPoster(canvas, result, ranking, theme, madrasaName) {
   const ctx = canvas.getContext("2d");
   const { width, height } = canvas;
   ctx.clearRect(0, 0, width, height);
   drawBackground(ctx, width, height, theme);
   drawFrame(ctx, width, height, theme);
-  drawBrandHeader(ctx, width, theme, 96);
+  drawBrandHeader(ctx, width, theme, 96, madrasaName);
 
   const medalColor = MEDAL_COLORS[ranking.rank] || theme.gold;
 
@@ -387,13 +394,13 @@ async function drawPoster(canvas, result, ranking, theme) {
 
 // ---- Combined top-3 "podium" poster -----------------------------------------
 
-async function drawTop3Poster(canvas, result, rankings, theme) {
+async function drawTop3Poster(canvas, result, rankings, theme, madrasaName) {
   const ctx = canvas.getContext("2d");
   const { width, height } = canvas;
   ctx.clearRect(0, 0, width, height);
   drawBackground(ctx, width, height, theme);
   drawFrame(ctx, width, height, theme);
-  drawBrandHeader(ctx, width, theme, 72);
+  drawBrandHeader(ctx, width, theme, 72, madrasaName);
 
   ctx.font = "700 30px sans-serif";
   ctx.fillStyle = theme.textPrimary;
@@ -471,7 +478,7 @@ async function drawTop3Poster(canvas, result, rankings, theme) {
   drawDivider(ctx, width / 2, height - 92, 220, theme);
   ctx.font = "16px sans-serif";
   ctx.fillStyle = theme.textMuted;
-  ctx.fillText("Madrasa Meelad Fest Manager", width / 2, height - 52);
+  ctx.fillText(madrasaName || "Madrasa Meelad Fest Manager", width / 2, height - 52);
 }
 
 function loadImage(src) {

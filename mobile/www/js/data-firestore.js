@@ -23,6 +23,14 @@ import {
 } from "./firebase.js";
 import { genId } from "./util.js";
 
+// --- Fest settings (Madrasa name, shown on posters) ------------------------
+export function watchFestSettings(festId, cb) {
+  return onSnapshot(doc(db, "fests", festId), (d) => cb(d.exists() ? d.data() : {}));
+}
+export async function updateFestSettings(festId, settings) {
+  await setDoc(doc(db, "fests", festId), settings, { merge: true });
+}
+
 // --- Groups -----------------------------------------------------------
 // A fest can have any number of groups (commonly 2, but some fests run 3+
 // teams) — Group is a plain admin-managed collection, not a fixed pair.

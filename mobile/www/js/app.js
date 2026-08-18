@@ -13,6 +13,7 @@ import { renderAdminItems } from "./views/admin-items.js";
 import { renderAdminRegistrations } from "./views/admin-registrations.js";
 import { renderAdminJudges } from "./views/admin-judges.js";
 import { renderAdminResults } from "./views/admin-results.js";
+import { renderAdminSettings } from "./views/admin-settings.js";
 import { renderJudgeQueue } from "./views/judge-queue.js";
 import { renderJudgeScoring } from "./views/judge-scoring.js";
 import { renderPublicLeaderboard } from "./views/public-leaderboard.js";
@@ -60,6 +61,7 @@ route("/admin/items", page("admin", renderAdminItems));
 route("/admin/registrations", page("admin", renderAdminRegistrations));
 route("/admin/judges", page("admin", renderAdminJudges));
 route("/admin/results", page("admin", renderAdminResults));
+route("/admin/settings", page("admin", renderAdminSettings));
 
 route("/judge", page("judge", renderJudgeQueue));
 route("/judge/scoring/:itemId", page("judge", renderJudgeScoring));
