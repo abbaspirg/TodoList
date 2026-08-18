@@ -146,7 +146,27 @@ firestore.rules, firestore.indexes.json, storage.rules
 5. Poster generation triggers off `results/{itemId}` being written — Admin (or
    an automatic Cloud Function) renders one poster per medal position.
 
-## 6. Non-Functional Notes
+## 6. Local Test Mode
+
+`js/data.js` and `js/auth.js` are thin dispatchers: every function they
+export is implemented twice — once against Firestore (`data-firestore.js` /
+`auth-firebase.js`) and once against `localStorage` (`data-local.js` /
+`auth-local.js`, via the small reactive store in `local-store.js`) — chosen
+per-call by `firebase.js`'s `isLocalMode()` (true whenever
+`firebase-config.js` still has its placeholder `apiKey`). Views only ever
+import the dispatcher, never the two backend-specific modules, so no screen
+needs to know or care which backend is active.
+
+The local backend replicates the one piece of server-side logic that would
+otherwise be missing without Cloud Functions: `data-local.js`'s
+`submitScore()` runs the same rank + group-total computation described in
+§5 synchronously in the browser after every score write, instead of relying
+on the `onScoreWrite` trigger. This is intentionally *not* how the
+Firestore-backed path works (that stays server-side and tamper-proof, per
+§4) — Local Test Mode trades that guarantee for zero setup, which is fine
+since it's explicitly a single-device sandbox, not a real fest's data.
+
+## 7. Non-Functional Notes
 
 - **Scale target:** a single fest (hundreds of students, dozens of items, a
   handful of judges) — Firestore's free/low tier comfortably covers this; no

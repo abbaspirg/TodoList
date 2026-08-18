@@ -1,7 +1,10 @@
-import { el, mount } from "../util.js";
+import { el, mount, toast } from "../util.js";
 import { watchGroupTotals } from "../data.js";
 import { FEST_ID } from "../firebase-config.js";
 import { signOut } from "../auth.js";
+import { isLocalMode } from "../firebase.js";
+import { resetLocalData } from "../local-store.js";
+import { navigate } from "../router.js";
 
 const NAV_TILES = [
   { href: "/admin/students", icon: "👥", label: "Students" },
@@ -27,8 +30,26 @@ export async function renderAdminDashboard() {
   mount(
     el("div", {}, [
       el("div", { class: "btn-row", style: "justify-content:flex-end;margin-bottom:8px" }, [
+        isLocalMode()
+          ? el(
+              "button",
+              {
+                class: "btn secondary",
+                onclick: () => {
+                  if (!confirm("Reset all local test data? This can't be undone.")) return;
+                  resetLocalData();
+                  toast("Local data reset");
+                  navigate("/admin");
+                },
+              },
+              "Reset local data",
+            )
+          : null,
         el("button", { class: "btn secondary", onclick: signOut }, "Sign out"),
       ]),
+      isLocalMode()
+        ? el("p", { class: "chip", style: "margin-bottom:12px" }, "Local Test Mode — data stays on this device only")
+        : null,
       scoreBarHost,
       grid,
     ]),

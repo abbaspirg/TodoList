@@ -1,8 +1,15 @@
 import { el, mount, toast } from "../util.js";
-import { signIn } from "../auth.js";
+import { signIn, continueAsAdmin, continueAsJudge } from "../auth.js";
+import { isLocalMode } from "../firebase.js";
+import { watchJudges } from "../data.js";
 import { navigate } from "../router.js";
 
 export async function renderLogin() {
+  if (isLocalMode()) {
+    await renderLocalRolePicker();
+    return;
+  }
+
   const emailInput = el("input", { type: "email", placeholder: "Email" });
   const passwordInput = el("input", { type: "password", placeholder: "Password" });
   const submitBtn = el("button", { class: "btn", type: "submit" }, "Sign in");
@@ -40,4 +47,68 @@ export async function renderLogin() {
       ]),
     ]),
   );
+}
+
+async function renderLocalRolePicker() {
+  const judgeListHost = el("div", {}, "Loading judges…");
+
+  mount(
+    el("div", { style: "max-width:420px;margin:40px auto" }, [
+      el("div", { class: "card" }, [
+        el("h1", { class: "page-title", style: "text-align:center" }, "🕌 Madrasa Fest Manager"),
+        el(
+          "p",
+          { class: "chip", style: "display:block;text-align:center;margin-bottom:16px" },
+          "Local Test Mode — data stays on this device only",
+        ),
+        el(
+          "button",
+          {
+            class: "btn",
+            style: "width:100%",
+            onclick: async () => {
+              await continueAsAdmin();
+            },
+          },
+          "Continue as Admin",
+        ),
+      ]),
+      el("div", { class: "card" }, [
+        el("h2", { style: "margin-top:0" }, "Continue as Judge"),
+        judgeListHost,
+      ]),
+      el("p", { style: "text-align:center" }, [
+        el("a", { href: "#/public", onclick: () => navigate("/public") }, "View live results (no login)"),
+      ]),
+    ]),
+  );
+
+  watchJudges("current", (judges) => {
+    if (judges.length === 0) {
+      judgeListHost.replaceChildren(
+        el(
+          "p",
+          { class: "subtitle" },
+          'No judges yet — sign in as Admin first and add one under "Judges", then come back here.',
+        ),
+      );
+      return;
+    }
+    judgeListHost.replaceChildren(
+      el(
+        "ul",
+        { class: "list" },
+        judges.map((j) =>
+          el("li", { class: "list-row" }, [
+            el("span", { style: "flex:1" }, j.name),
+            el(
+              "button",
+              { class: "btn secondary", onclick: async () => await continueAsJudge(j.id) },
+              "Continue",
+            ),
+          ]),
+        ),
+      ),
+    );
+  });
 }

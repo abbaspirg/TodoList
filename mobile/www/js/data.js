@@ -1,163 +1,46 @@
-// Firestore data access, one function per operation from
-// docs/DATABASE_SCHEMA.md — the JS equivalent of the Flutter build's
-// repository layer. Views never import ./firebase.js directly, only this
-// module, so the storage details stay in one place.
-import {
-  db,
-  collection,
-  doc,
-  setDoc,
-  updateDoc,
-  deleteDoc,
-  onSnapshot,
-  query,
-  where,
-  orderBy,
-  serverTimestamp,
-  FIREBASE_SDK_CDN,
-} from "./firebase.js";
-import { genId } from "./util.js";
+// Dispatches every operation to js/data-firestore.js or js/data-local.js
+// depending on js/firebase.js isLocalMode() — see docs/ARCHITECTURE.md
+// "Local Test Mode". Views only ever import this file, never the two
+// backend-specific ones directly, so swapping backends never touches a view.
+import { isLocalMode } from "./firebase.js";
+import * as firestoreImpl from "./data-firestore.js";
+import * as localImpl from "./data-local.js";
 
-// --- Groups -----------------------------------------------------------
-export function watchGroups(festId, cb) {
-  return onSnapshot(collection(db, "fests", festId, "groups"), (snap) =>
-    cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
-  );
-}
-export function watchGroupTotals(festId, cb) {
-  return onSnapshot(collection(db, "fests", festId, "groupTotals"), (snap) =>
-    cb(snap.docs.map((d) => ({ groupId: d.id, ...d.data() }))),
-  );
-}
-export async function updateGroup(festId, group) {
-  await updateDoc(doc(db, "fests", festId, "groups", group.id), group);
+function impl() {
+  return isLocalMode() ? localImpl : firestoreImpl;
 }
 
-// --- Categories ---------------------------------------------------------
-export function watchCategories(festId, cb) {
-  return onSnapshot(
-    query(collection(db, "fests", festId, "categories"), orderBy("sortOrder")),
-    (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
-  );
-}
-export async function addCategory(festId, category) {
-  const id = category.id || genId();
-  await setDoc(doc(db, "fests", festId, "categories", id), { ...category, id });
-}
-export async function updateCategory(festId, category) {
-  await updateDoc(doc(db, "fests", festId, "categories", category.id), category);
-}
-export async function deleteCategory(festId, categoryId) {
-  await deleteDoc(doc(db, "fests", festId, "categories", categoryId));
-}
+export const watchGroups = (...args) => impl().watchGroups(...args);
+export const watchGroupTotals = (...args) => impl().watchGroupTotals(...args);
+export const updateGroup = (...args) => impl().updateGroup(...args);
 
-// --- Students -------------------------------------------------------------
-export function watchStudents(festId, groupId, cb) {
-  const base = collection(db, "fests", festId, "students");
-  const q = groupId ? query(base, where("groupId", "==", groupId)) : base;
-  return onSnapshot(q, (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
-}
-export async function addStudent(festId, student) {
-  const id = student.id || genId();
-  await setDoc(doc(db, "fests", festId, "students", id), {
-    ...student,
-    id,
-    createdAt: serverTimestamp(),
-  });
-}
-export async function updateStudent(festId, student) {
-  await updateDoc(doc(db, "fests", festId, "students", student.id), student);
-}
-export async function deleteStudent(festId, studentId) {
-  await deleteDoc(doc(db, "fests", festId, "students", studentId));
-}
+export const watchCategories = (...args) => impl().watchCategories(...args);
+export const addCategory = (...args) => impl().addCategory(...args);
+export const updateCategory = (...args) => impl().updateCategory(...args);
+export const deleteCategory = (...args) => impl().deleteCategory(...args);
 
-// --- Items ------------------------------------------------------------------
-export function watchItems(festId, categoryId, cb) {
-  const base = collection(db, "fests", festId, "items");
-  const q = categoryId ? query(base, where("categoryId", "==", categoryId)) : base;
-  return onSnapshot(q, (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
-}
-export function watchItem(festId, itemId, cb) {
-  return onSnapshot(doc(db, "fests", festId, "items", itemId), (d) =>
-    cb(d.exists() ? { id: d.id, ...d.data() } : null),
-  );
-}
-export async function addItem(festId, item) {
-  const id = item.id || genId();
-  await setDoc(doc(db, "fests", festId, "items", id), { ...item, id, status: "pending" });
-}
-export async function updateItem(festId, item) {
-  await updateDoc(doc(db, "fests", festId, "items", item.id), item);
-}
-export async function setItemStatus(festId, itemId, status) {
-  await updateDoc(doc(db, "fests", festId, "items", itemId), { status });
-}
+export const watchStudents = (...args) => impl().watchStudents(...args);
+export const addStudent = (...args) => impl().addStudent(...args);
+export const updateStudent = (...args) => impl().updateStudent(...args);
+export const deleteStudent = (...args) => impl().deleteStudent(...args);
 
-// --- Registrations (flat top-level collection, filtered by itemId) --------
-export function watchRegistrations(itemId, cb) {
-  const q = query(collection(db, "registrations"), where("itemId", "==", itemId));
-  return onSnapshot(q, (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
-}
-export async function registerStudent(registration) {
-  const id = registration.id || `${registration.itemId}_${registration.studentId}`;
-  await setDoc(doc(db, "registrations", id), { ...registration, id, status: "registered" });
-}
-export async function withdrawRegistration(registrationId) {
-  await updateDoc(doc(db, "registrations", registrationId), { status: "withdrawn" });
-}
+export const watchItems = (...args) => impl().watchItems(...args);
+export const watchItem = (...args) => impl().watchItem(...args);
+export const addItem = (...args) => impl().addItem(...args);
+export const updateItem = (...args) => impl().updateItem(...args);
+export const setItemStatus = (...args) => impl().setItemStatus(...args);
 
-// --- Judges -------------------------------------------------------------
-export function watchJudges(festId, cb) {
-  return onSnapshot(collection(db, "fests", festId, "judges"), (snap) =>
-    cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
-  );
-}
-export async function addJudge(festId, judge) {
-  const id = judge.id || genId();
-  await setDoc(doc(db, "fests", festId, "judges", id), { ...judge, id, assignedItemIds: [] });
-}
-export async function assignJudgeToItems(judgeId, itemIds) {
-  // Server-side: updates the judge's assignedItemIds AND their Firebase
-  // Auth custom claims (assignedItems), which is what firestore.rules
-  // checks — a client can't set its own custom claims. See
-  // functions/src/index.ts assignJudgeToItems.
-  const { getFunctions, httpsCallable } = await import(`${FIREBASE_SDK_CDN}/firebase-functions.js`);
-  const call = httpsCallable(getFunctions(), "assignJudgeToItems");
-  await call({ judgeId, itemIds });
-}
+export const watchRegistrations = (...args) => impl().watchRegistrations(...args);
+export const registerStudent = (...args) => impl().registerStudent(...args);
+export const withdrawRegistration = (...args) => impl().withdrawRegistration(...args);
 
-// --- Scores -----------------------------------------------------------------
-export function watchScoresByJudge(itemId, judgeId, cb) {
-  const q = query(
-    collection(db, "scores"),
-    where("itemId", "==", itemId),
-    where("judgeId", "==", judgeId),
-  );
-  return onSnapshot(q, (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
-}
-export async function submitScore(score) {
-  // Deterministic doc ID gives idempotent double-submit protection for
-  // free; security rules make this collection create-only. See
-  // docs/ARCHITECTURE.md §4-5.
-  const id = `${score.registrationId}_${score.judgeId}`;
-  await setDoc(doc(db, "scores", id), { ...score, id, submittedAt: serverTimestamp() });
-}
+export const watchJudges = (...args) => impl().watchJudges(...args);
+export const addJudge = (...args) => impl().addJudge(...args);
+export const assignJudgeToItems = (...args) => impl().assignJudgeToItems(...args);
 
-// --- Results ----------------------------------------------------------------
-export function watchPublishedResults(festId, cb) {
-  const q = query(
-    collection(db, "fests", festId, "results"),
-    where("published", "==", true),
-    orderBy("finalizedAt", "desc"),
-  );
-  return onSnapshot(q, (snap) => cb(snap.docs.map((d) => ({ itemId: d.id, ...d.data() }))));
-}
-export function watchAllResults(festId, cb) {
-  return onSnapshot(collection(db, "fests", festId, "results"), (snap) =>
-    cb(snap.docs.map((d) => ({ itemId: d.id, ...d.data() }))),
-  );
-}
-export async function publishResult(festId, itemId) {
-  await updateDoc(doc(db, "fests", festId, "results", itemId), { published: true });
-}
+export const watchScoresByJudge = (...args) => impl().watchScoresByJudge(...args);
+export const submitScore = (...args) => impl().submitScore(...args);
+
+export const watchPublishedResults = (...args) => impl().watchPublishedResults(...args);
+export const watchAllResults = (...args) => impl().watchAllResults(...args);
+export const publishResult = (...args) => impl().publishResult(...args);

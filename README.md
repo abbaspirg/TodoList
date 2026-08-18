@@ -28,6 +28,20 @@ firestore.rules, firestore.indexes.json, storage.rules
 .github/workflows/android-build.yml   builds a debug APK on every push
 ```
 
+## Local Test Mode (no Firebase needed)
+
+The app installs and runs fully without any setup: as long as
+`mobile/www/js/firebase-config.js` still has its placeholder `apiKey`
+("TODO"), every screen runs against `localStorage` on the device instead of
+Firestore — students, groups, categories, items, registrations, judge
+scoring (including the automatic rank + group-total computation a Cloud
+Function would normally do), results, and posters all work, they just don't
+sync anywhere. The login screen becomes a role picker ("Continue as Admin" /
+"Continue as Judge") instead of an email/password form. Admin → Dashboard has
+a "Reset local data" button to start over. This is meant for trying out the
+app or demoing the workflow — switch to a real Firebase project (below)
+before running an actual fest, since nothing local is shared between devices.
+
 ## Getting Started
 
 1. **Create a Firebase project** and enable: Authentication (Email/Password),

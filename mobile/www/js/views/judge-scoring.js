@@ -1,7 +1,7 @@
 import { el, mount } from "../util.js";
 import { watchItem, watchRegistrations, watchScoresByJudge, submitScore } from "../data.js";
 import { FEST_ID } from "../firebase-config.js";
-import { auth } from "../firebase.js";
+import { currentUserId } from "../auth.js";
 
 const DEFAULT_CRITERIA = ["Voice", "Pronunciation", "Presentation"];
 
@@ -12,7 +12,7 @@ export async function renderJudgeScoring({ itemId }) {
   let criteria = DEFAULT_CRITERIA;
   let registrations = [];
   let submittedByRegId = new Map();
-  const judgeId = auth.currentUser?.uid || "";
+  const judgeId = currentUserId() || "";
 
   function render() {
     listHost.replaceChildren(

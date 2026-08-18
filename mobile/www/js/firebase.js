@@ -5,11 +5,19 @@
 //
 // The CDN imports are dynamic (not static `import ... from` statements) and
 // wrapped in try/catch: a static import of a remote URL that fails to load
-// (offline first launch, an ad-blocker, a misconfigured proxy) would throw
-// before this module's own code runs, breaking the whole app with a blank
-// screen and no error. Dynamic import lets us catch that and fall back to
-// the "not configured" screen instead — the JS equivalent of the try/catch
-// around Firebase.initializeApp() in the earlier Flutter build.
+// would throw before this module's own code runs, breaking the whole app
+// with a blank screen. Dynamic import lets us catch that.
+//
+// Two distinct "not using real Firebase" states are tracked separately:
+//  - isLocalMode(): firebase-config.js still has the placeholder apiKey —
+//    intentional, not an error. The app runs fully against
+//    js/data-local.js / js/auth-local.js (localStorage) instead. See
+//    js/data.js and js/auth.js for the dispatch.
+//  - hasFirebaseError(): a real config was provided but initializing it
+//    failed (bad project, offline, CDN blocked) — this *is* an error, shown
+//    via views/not-configured.js rather than silently falling back to local
+//    mode, so a real misconfiguration doesn't masquerade as "it's working,
+//    just local."
 import { firebaseConfig } from "./firebase-config.js";
 
 const SDK_VERSION = "10.12.2";
@@ -38,11 +46,20 @@ export let storageRef;
 export let uploadBytes;
 export let getDownloadURL;
 
+export function isLocalMode() {
+  return firebaseConfig.apiKey === "TODO";
+}
+
+export function hasFirebaseError() {
+  return !isLocalMode() && initError !== null;
+}
+
+export function isFirebaseReady() {
+  return auth !== null;
+}
+
 async function init() {
-  if (firebaseConfig.apiKey === "TODO") {
-    initError = new Error("firebase-config.js still has placeholder values.");
-    return;
-  }
+  if (isLocalMode()) return; // intentional — see isLocalMode() doc above
   try {
     const [{ initializeApp }, authMod, firestoreMod, storageMod] = await Promise.all([
       import(`${CDN}/firebase-app.js`),
@@ -66,10 +83,6 @@ async function init() {
 }
 
 const ready = init();
-
-export function isFirebaseReady() {
-  return auth !== null;
-}
 
 // Views/data.js await this before touching any Firestore call, so nothing
 // races the async CDN load above.

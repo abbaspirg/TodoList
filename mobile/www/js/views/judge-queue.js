@@ -1,9 +1,8 @@
 import { el, mount } from "../util.js";
 import { watchJudges, watchItems } from "../data.js";
 import { FEST_ID } from "../firebase-config.js";
-import { auth } from "../firebase.js";
 import { navigate } from "../router.js";
-import { signOut } from "../auth.js";
+import { signOut, currentUserId } from "../auth.js";
 
 export async function renderJudgeQueue() {
   const listHost = el("div", {});
@@ -53,7 +52,11 @@ export async function renderJudgeQueue() {
     render();
   });
   watchJudges(FEST_ID, (judges) => {
-    const me = judges.find((j) => j.authUid === auth.currentUser?.uid);
+    // authUid matches a real Firebase Auth uid; falling back to the
+    // judge's own doc id matches Local Test Mode, where "signing in" as a
+    // judge uses that judge's local id directly (see js/auth-local.js).
+    const uid = currentUserId();
+    const me = judges.find((j) => j.authUid === uid || j.id === uid);
     myAssignedIds = me?.assignedItemIds || [];
     render();
   });

@@ -1,6 +1,6 @@
 import { route, notFound, navigate, startRouter } from "./router.js";
 import { watchAuthState, currentRole, signOut } from "./auth.js";
-import { isFirebaseReady, whenFirebaseReady } from "./firebase.js";
+import { hasFirebaseError, whenFirebaseReady } from "./firebase.js";
 import { el } from "./util.js";
 
 import { renderLogin } from "./views/login.js";
@@ -23,13 +23,12 @@ import { renderPoster } from "./views/poster.js";
 let signedIn = false;
 let role = null;
 
-// Every route — including the public/no-login ones — needs a live
-// Firestore connection, so gate all of them on Firebase readiness first;
-// only /login gets a dedicated "not configured" message via renderLogin's
-// caller below, everything else shows the shared not-configured card.
+// A route only ever blocks on a *real* Firebase misconfiguration — Local
+// Test Mode (js/firebase.js isLocalMode()) runs every route normally
+// against js/data-local.js, no gate needed for that case.
 function page(requiredRole, renderFn) {
   return async (params) => {
-    if (!isFirebaseReady()) {
+    if (hasFirebaseError()) {
       renderNotConfigured();
       return;
     }
@@ -42,7 +41,7 @@ function page(requiredRole, renderFn) {
 }
 
 route("/login", async () => {
-  if (!isFirebaseReady()) {
+  if (hasFirebaseError()) {
     renderNotConfigured();
     return;
   }
@@ -94,17 +93,13 @@ document.getElementById("signOutBtn").addEventListener("click", signOut);
 // --- Boot ---------------------------------------------------------------
 async function boot() {
   await whenFirebaseReady();
-  if (isFirebaseReady()) {
-    watchAuthState(async (user) => {
-      signedIn = Boolean(user);
-      role = signedIn ? await currentRole() : null;
-      renderNav();
-      // Re-run the current route now that auth/role state is known.
-      window.dispatchEvent(new HashChangeEvent("hashchange"));
-    });
-  } else {
+  watchAuthState(async (user) => {
+    signedIn = Boolean(user);
+    role = signedIn ? await currentRole() : null;
     renderNav();
-  }
+    // Re-run the current route now that auth/role state is known.
+    window.dispatchEvent(new HashChangeEvent("hashchange"));
+  });
   startRouter();
 }
 boot();

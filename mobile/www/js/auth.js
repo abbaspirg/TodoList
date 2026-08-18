@@ -1,22 +1,35 @@
-import { auth, onAuthStateChanged, signInWithEmailAndPassword, fbSignOut } from "./firebase.js";
+// Dispatches to js/auth-firebase.js or js/auth-local.js depending on
+// js/firebase.js isLocalMode() — mirrors the js/data.js dispatch. Views
+// only ever import this file.
+import { isLocalMode, auth as firebaseAuth } from "./firebase.js";
+import * as fb from "./auth-firebase.js";
+import {
+  watchAuthStateLocal,
+  currentSessionLocal,
+  continueAsAdminLocal,
+  continueAsJudgeLocal,
+  signOutLocal,
+} from "./auth-local.js";
 
 export function watchAuthState(cb) {
-  return onAuthStateChanged(auth, cb);
+  return isLocalMode() ? watchAuthStateLocal(cb) : fb.watchAuthState(cb);
+}
+
+export async function currentRole() {
+  return isLocalMode() ? (currentSessionLocal()?.role ?? null) : fb.currentRole();
+}
+
+export function currentUserId() {
+  return isLocalMode() ? (currentSessionLocal()?.uid ?? null) : (firebaseAuth?.currentUser?.uid ?? null);
 }
 
 export async function signIn(email, password) {
-  await signInWithEmailAndPassword(auth, email, password);
+  return fb.signIn(email, password);
 }
 
 export async function signOut() {
-  await fbSignOut(auth);
+  return isLocalMode() ? signOutLocal() : fb.signOut();
 }
 
-// The `role` custom claim is set server-side (Cloud Function) when an
-// Admin creates/assigns a user — see docs/ARCHITECTURE.md §4.
-export async function currentRole() {
-  const user = auth.currentUser;
-  if (!user) return null;
-  const token = await user.getIdTokenResult(true);
-  return token.claims.role ?? null;
-}
+export const continueAsAdmin = continueAsAdminLocal;
+export const continueAsJudge = continueAsJudgeLocal;
