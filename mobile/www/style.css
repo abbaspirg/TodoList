@@ -147,6 +147,7 @@ h1.page-title {
 }
 .btn.danger { background: var(--danger); }
 .btn:disabled { opacity: 0.5; cursor: default; }
+.btn.secondary.active { background: var(--primary); color: #fff; border-color: var(--primary); }
 .btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
 
 .fab {

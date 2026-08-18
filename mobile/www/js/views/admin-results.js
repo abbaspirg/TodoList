@@ -21,9 +21,24 @@ export async function renderAdminResults() {
         el("div", { class: "card" }, [
           el("div", { class: "btn-row", style: "justify-content:space-between;align-items:center" }, [
             el("strong", {}, result.itemName || result.itemId),
-            !result.published
-              ? el("button", { class: "btn secondary", onclick: () => publishResult(FEST_ID, result.itemId) }, "Publish")
-              : el("span", { class: "chip status-completed" }, "Published"),
+            el("div", { class: "btn-row" }, [
+              (result.rankings || []).length > 0
+                ? el(
+                    "button",
+                    {
+                      class: "btn secondary",
+                      onclick: () => {
+                        window.__posterData = { mode: "top3", result, rankings: result.rankings.slice(0, 3) };
+                        navigate("/poster");
+                      },
+                    },
+                    "Poster (Top 3)",
+                  )
+                : null,
+              !result.published
+                ? el("button", { class: "btn secondary", onclick: () => publishResult(FEST_ID, result.itemId) }, "Publish")
+                : el("span", { class: "chip status-completed" }, "Published"),
+            ]),
           ]),
           el(
             "div",
