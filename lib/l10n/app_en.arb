@@ -1,0 +1,13 @@
+{
+  "@@locale": "en",
+  "appTitle": "Madrasa Meelad Fest Manager",
+  "@appTitle": {"description": "App name shown on the login screen"},
+  "students": "Students",
+  "groups": "Groups",
+  "categories": "Categories",
+  "items": "Items",
+  "registrations": "Registrations",
+  "judges": "Judges",
+  "results": "Results & Analytics",
+  "liveLeaderboard": "Live Leaderboard"
+}

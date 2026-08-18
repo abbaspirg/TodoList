@@ -1,0 +1,20 @@
+rules_version = '2';
+
+// Student photos and generated posters — see docs/ARCHITECTURE.md §1.
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isAdmin() {
+      return request.auth != null && request.auth.token.role == 'admin';
+    }
+
+    match /students/{studentId}.jpg {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /posters/{posterId}.png {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+  }
+}
