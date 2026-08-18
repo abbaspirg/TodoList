@@ -35,7 +35,7 @@ export async function renderJudgeQueue() {
           "div",
           {
             class: "card",
-            style: ongoing ? "border-color:#0f6e4f;cursor:pointer" : "opacity:0.6",
+            style: ongoing ? "border-color:var(--primary);cursor:pointer" : "opacity:0.6",
             onclick: ongoing ? () => navigate(`/judge/scoring/${item.id}`) : undefined,
           },
           [

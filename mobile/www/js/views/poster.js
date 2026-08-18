@@ -1,6 +1,7 @@
 import { el, mount, initials, toast } from "../util.js";
 import { getFestSettings } from "../data.js";
 import { FEST_ID } from "../firebase-config.js";
+import { isDark as isAppDark } from "../theme.js";
 
 const MEDALS = { 1: "🥇", 2: "🥈", 3: "🥉" };
 const MEDAL_COLORS = { 1: "#d4af37", 2: "#b7bcc4", 3: "#c07a3c" };
@@ -32,7 +33,11 @@ const THEMES = {
   },
 };
 
-let currentTheme = localStorage.getItem("posterTheme") === "light" ? "light" : "dark";
+// Defaults to whichever mode the user hasn't explicitly picked for posters
+// yet by following the app-wide theme, rather than always starting dark.
+const savedPosterTheme = localStorage.getItem("posterTheme");
+let currentTheme =
+  savedPosterTheme === "light" || savedPosterTheme === "dark" ? savedPosterTheme : isAppDark() ? "dark" : "light";
 
 // Renders the poster on a <canvas> (photo, name, group, rank, item name,
 // fest branding) and offers Download/Share — the web equivalent of the

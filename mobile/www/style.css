@@ -9,6 +9,50 @@
   --danger: #c0392b;
   --radius: 14px;
   --shadow: 0 2px 10px rgba(20, 30, 25, 0.06);
+  --chip-ongoing-bg: #fff4d6;
+  --chip-ongoing-text: #8a6400;
+  --chip-ongoing-border: #f2df9e;
+  --chip-completed-bg: #dff3e6;
+  --chip-completed-border: #b9e5cc;
+}
+
+/* Dark mode — js/theme.js sets data-theme="dark"/"light" on <html> when the
+   user picks explicitly (persisted in localStorage); with neither set, the
+   OS-level prefers-color-scheme decides, same as every other themed app. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1512;
+    --surface: #18211d;
+    --text: #edf2ef;
+    --text-muted: #9baba3;
+    --border: #2b3733;
+    --primary: #2fa876;
+    --primary-dark: #278f65;
+    --danger: #e0584a;
+    --shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+    --chip-ongoing-bg: #3a3218;
+    --chip-ongoing-text: #f2d17a;
+    --chip-ongoing-border: #5a4c22;
+    --chip-completed-bg: #16332480;
+    --chip-completed-border: #2f5b40;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #0e1512;
+  --surface: #18211d;
+  --text: #edf2ef;
+  --text-muted: #9baba3;
+  --border: #2b3733;
+  --primary: #2fa876;
+  --primary-dark: #278f65;
+  --danger: #e0584a;
+  --shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+  --chip-ongoing-bg: #3a3218;
+  --chip-ongoing-text: #f2d17a;
+  --chip-ongoing-border: #5a4c22;
+  --chip-completed-bg: #163324;
+  --chip-completed-border: #2f5b40;
 }
 
 * { box-sizing: border-box; }
@@ -118,15 +162,30 @@ h1.page-title {
   font-size: 0.8rem;
   color: var(--text-muted);
 }
-.field input,
-.field select,
-.field textarea {
+/* Applies to every text-like control app-wide, not just ones wrapped in
+   `.field` (several views use a bare search/filter input or select) — a
+   bare control would otherwise fall back to the browser's native white
+   box, which only happened to look right in light mode. Special input
+   types (color/range/file/checkbox/...) keep their native rendering
+   instead, since this padding/border squashes those. */
+input:not([type="color"]):not([type="range"]):not([type="file"]):not([type="checkbox"]):not([type="radio"]):not([type="button"]):not([type="submit"]),
+select,
+textarea {
   padding: 10px 12px;
   border: 1px solid var(--border);
   border-radius: 10px;
   font-size: 0.95rem;
   background: var(--bg);
   color: var(--text);
+}
+
+input[type="color"] {
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  height: 40px;
+  width: 64px;
+  background: var(--surface);
 }
 
 .btn {
@@ -189,8 +248,8 @@ h1.page-title {
   border: 1px solid var(--border);
   color: var(--text-muted);
 }
-.chip.status-ongoing { background: #fff4d6; color: #8a6400; border-color: #f2df9e; }
-.chip.status-completed { background: #dff3e6; color: var(--primary-dark); border-color: #b9e5cc; }
+.chip.status-ongoing { background: var(--chip-ongoing-bg); color: var(--chip-ongoing-text); border-color: var(--chip-ongoing-border); }
+.chip.status-completed { background: var(--chip-completed-bg); color: var(--primary-dark); border-color: var(--chip-completed-border); }
 
 .empty-state {
   text-align: center;
@@ -278,7 +337,9 @@ h1.page-title {
   left: 50%;
   bottom: calc(24px + env(safe-area-inset-bottom, 0px));
   transform: translateX(-50%);
-  background: var(--text);
+  /* Always a dark pill regardless of theme, not tied to --text (which
+     flips light in dark mode and would wreck contrast here). */
+  background: #1c2521;
   color: #fff;
   padding: 10px 18px;
   border-radius: 999px;

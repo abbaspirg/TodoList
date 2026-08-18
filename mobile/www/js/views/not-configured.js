@@ -17,7 +17,7 @@ export function renderNotConfigured() {
           "internet access. To fall back to Local Test Mode instead, reset " +
           "apiKey to \"TODO\" in that file.",
       ),
-      initError ? el("p", { style: "color:#c0392b" }, String(initError.message || initError)) : null,
+      initError ? el("p", { style: "color:var(--danger)" }, String(initError.message || initError)) : null,
     ]),
   );
 }

@@ -4,6 +4,18 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>Madrasa Fest Manager</title>
+<!-- Applies a saved light/dark choice before style.css's first paint, so a
+     device saved on dark doesn't flash light first — js/theme.js (loaded
+     later, as an ES module) owns the toggle button but reuses this same
+     "appTheme" key/attribute. -->
+<script>
+  (function () {
+    try {
+      var t = localStorage.getItem("appTheme");
+      if (t === "light" || t === "dark") document.documentElement.setAttribute("data-theme", t);
+    } catch (e) {}
+  })();
+</script>
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -14,6 +26,7 @@
       <span>Madrasa Fest</span>
     </div>
     <nav id="navLinks" class="nav-links"></nav>
+    <button id="themeToggleBtn" class="icon-btn" title="Toggle theme">🌙</button>
     <button id="signOutBtn" class="icon-btn" title="Sign out" hidden>⎋</button>
   </header>
 

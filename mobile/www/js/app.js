@@ -2,6 +2,7 @@ import { route, notFound, navigate, startRouter } from "./router.js";
 import { watchAuthState, currentRole, signOut } from "./auth.js";
 import { hasFirebaseError, whenFirebaseReady } from "./firebase.js";
 import { el } from "./util.js";
+import { isDark, toggleTheme } from "./theme.js";
 
 import { renderLogin } from "./views/login.js";
 import { renderNotConfigured } from "./views/not-configured.js";
@@ -91,6 +92,20 @@ function renderNav() {
   signOutBtn.hidden = !signedIn;
 }
 document.getElementById("signOutBtn").addEventListener("click", signOut);
+
+// --- Theme toggle --------------------------------------------------------
+const themeToggleBtn = document.getElementById("themeToggleBtn");
+function updateThemeToggleIcon() {
+  // Icon shows the mode a tap switches *to* — a moon while light is active
+  // (tap for dark), a sun while dark is active (tap for light).
+  themeToggleBtn.textContent = isDark() ? "☀️" : "🌙";
+  themeToggleBtn.title = isDark() ? "Switch to light mode" : "Switch to dark mode";
+}
+themeToggleBtn.addEventListener("click", () => {
+  toggleTheme();
+  updateThemeToggleIcon();
+});
+updateThemeToggleIcon();
 
 // --- Back button --------------------------------------------------------
 // /login is the app's one true entry point with nowhere to go back to;
