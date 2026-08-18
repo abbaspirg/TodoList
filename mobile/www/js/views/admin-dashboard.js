@@ -4,6 +4,7 @@ import { FEST_ID } from "../firebase-config.js";
 import { signOut } from "../auth.js";
 import { isLocalMode } from "../firebase.js";
 import { resetLocalData } from "../local-store.js";
+import { loadDemoData } from "../demo-data.js";
 import { navigate } from "../router.js";
 
 const NAV_TILES = [
@@ -31,6 +32,31 @@ export async function renderAdminDashboard() {
   mount(
     el("div", {}, [
       el("div", { class: "btn-row", style: "justify-content:flex-end;margin-bottom:8px" }, [
+        isLocalMode()
+          ? el(
+              "button",
+              {
+                class: "btn secondary",
+                onclick: async (e) => {
+                  if (!confirm("Replace all local data with a ready-made demo fest? This can't be undone.")) return;
+                  const btn = e.target;
+                  btn.disabled = true;
+                  btn.textContent = "Loading…";
+                  try {
+                    const summary = await loadDemoData();
+                    toast(`Demo fest loaded — ${summary.students} students, ${summary.items} items`);
+                    navigate("/admin");
+                  } catch (err) {
+                    toast(err?.message || "Couldn't load the demo data.");
+                  } finally {
+                    btn.disabled = false;
+                    btn.textContent = "Load demo data";
+                  }
+                },
+              },
+              "Load demo data",
+            )
+          : null,
         isLocalMode()
           ? el(
               "button",

@@ -332,6 +332,19 @@ async function drawAvatar(ctx, cx, cy, radius, photoUrl, name, ringColor, theme)
   }
 }
 
+/** Sets ctx.font to the largest size (down to minSize) at which `text`
+ * fits maxWidth, and returns the text — shrinking a long name to fit
+ * rather than cutting a winner's name off mid-word. Falls back to
+ * truncation only when even minSize overflows. */
+function fitText(ctx, text, maxWidth, { weight = "700", family = "sans-serif", maxSize, minSize }) {
+  for (let size = maxSize; size >= minSize; size -= 1) {
+    ctx.font = `${weight} ${size}px ${family}`;
+    if (ctx.measureText(text).width <= maxWidth) return text;
+  }
+  ctx.font = `${weight} ${minSize}px ${family}`;
+  return truncate(ctx, text, maxWidth);
+}
+
 function truncate(ctx, text, maxWidth) {
   if (!text) return "";
   if (ctx.measureText(text).width <= maxWidth) return text;
@@ -373,9 +386,9 @@ async function drawPoster(canvas, result, ranking, theme, madrasaName) {
   const avatarR = 100;
   await drawAvatar(ctx, width / 2, avatarY, avatarR, ranking.studentPhotoUrl, ranking.studentName, medalColor, theme);
 
-  ctx.font = "700 46px sans-serif";
   ctx.fillStyle = theme.textPrimary;
-  ctx.fillText(ranking.studentName, width / 2, avatarY + avatarR + 66);
+  const winnerName = fitText(ctx, ranking.studentName || "", width - 120, { maxSize: 46, minSize: 30 });
+  ctx.fillText(winnerName, width / 2, avatarY + avatarR + 66);
 
   drawPill(ctx, ranking.groupName || "", width / 2, avatarY + avatarR + 92, theme, { font: "600 24px sans-serif" });
 
@@ -420,22 +433,14 @@ async function drawTop3Poster(canvas, result, rankings, theme, madrasaName) {
 
   const baseline = 830;
   const blockWidth = 168;
+  // nameWidth is how far a name may run before it would collide with the
+  // neighbouring column's avatar — wider than the podium block itself,
+  // since the text sits above the blocks where there's spare room. The
+  // centre column gets the most, having clear space on both sides.
   const columns = {
-    1: { cx: width / 2, blockH: 230, avatarR: 86, nameFont: "700 30px sans-serif", groupFont: "600 20px sans-serif" },
-    2: {
-      cx: width / 2 - 210,
-      blockH: 170,
-      avatarR: 68,
-      nameFont: "700 24px sans-serif",
-      groupFont: "500 18px sans-serif",
-    },
-    3: {
-      cx: width / 2 + 210,
-      blockH: 140,
-      avatarR: 64,
-      nameFont: "700 24px sans-serif",
-      groupFont: "500 18px sans-serif",
-    },
+    1: { cx: width / 2, blockH: 230, avatarR: 86, nameSize: 30, nameMinSize: 21, groupSize: 20, nameWidth: 260 },
+    2: { cx: width / 2 - 210, blockH: 170, avatarR: 68, nameSize: 24, nameMinSize: 17, groupSize: 18, nameWidth: 212 },
+    3: { cx: width / 2 + 210, blockH: 140, avatarR: 64, nameSize: 24, nameMinSize: 17, groupSize: 18, nameWidth: 212 },
   };
 
   // Draw left-to-right in podium order (2nd, 1st, 3rd) so the tallest block
@@ -464,14 +469,21 @@ async function drawTop3Poster(canvas, result, rankings, theme, madrasaName) {
     const avatarY = blockTop - col.avatarR - 74;
     await drawAvatar(ctx, col.cx, avatarY, col.avatarR, r.studentPhotoUrl, r.studentName, medalColor, theme);
 
-    const colMaxWidth = blockWidth + 44;
-    ctx.font = col.nameFont;
+    const colMaxWidth = col.nameWidth;
     ctx.fillStyle = theme.textPrimary;
-    ctx.fillText(truncate(ctx, r.studentName || "", colMaxWidth), col.cx, avatarY + col.avatarR + 34);
+    const nameText = fitText(ctx, r.studentName || "", colMaxWidth, {
+      maxSize: col.nameSize,
+      minSize: col.nameMinSize,
+    });
+    ctx.fillText(nameText, col.cx, avatarY + col.avatarR + 34);
 
-    ctx.font = col.groupFont;
     ctx.fillStyle = theme.textSecondary;
-    ctx.fillText(truncate(ctx, r.groupName || "", colMaxWidth), col.cx, avatarY + col.avatarR + 58);
+    const groupText = fitText(ctx, r.groupName || "", colMaxWidth, {
+      weight: "500",
+      maxSize: col.groupSize,
+      minSize: 13,
+    });
+    ctx.fillText(groupText, col.cx, avatarY + col.avatarR + 58);
 
     if (r.grade) {
       ctx.font = "600 17px sans-serif";

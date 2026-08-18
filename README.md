@@ -43,6 +43,27 @@ a "Reset local data" button to start over. This is meant for trying out the
 app or demoing the workflow — switch to a real Firebase project (below)
 before running an actual fest, since nothing local is shared between devices.
 
+### Demo data
+
+Admin → Dashboard → **"Load demo data"** replaces local data with a
+ready-made fest (see `mobile/www/js/demo-data.js`), so every screen has
+something realistic to show without typing it in:
+
+- 3 groups, 3 categories (Sub Junior / Junior / Senior), 15 students —
+  some with photos, some without, to cover both poster layouts.
+- 6 items spanning each state worth demoing: three fully scored and
+  published, one scored but **awaiting publish**, one **half-scored** (only
+  the first of two judges has submitted, so it's still open in the Judge
+  Panel), and one **untouched** with registrations ready.
+- 3 judges with overlapping item assignments; sign in as one to finish
+  scoring the open item and watch results and the leaderboard update live.
+- Marks chosen to span every grade band (A/B/C and below-C), including a
+  group item scored out of 20 rather than 10.
+
+Scores are replayed through the app's real `submitScore()` path rather than
+written as pre-baked results, so ranks, grades, points and group totals are
+computed by the same code the app uses normally.
+
 ## Getting Started
 
 1. **Create a Firebase project** and enable: Authentication (Email/Password),
