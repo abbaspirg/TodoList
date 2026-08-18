@@ -16,5 +16,6 @@
 import { Capacitor } from "@capacitor/core";
 import { Share } from "@capacitor/share";
 import { Filesystem, Directory } from "@capacitor/filesystem";
+import { App } from "@capacitor/app";
 
-window.CapPlugins = { Capacitor, Share, Filesystem, Directory };
+window.CapPlugins = { Capacitor, Share, Filesystem, Directory, App };

@@ -1,7 +1,7 @@
 import { route, notFound, navigate, startRouter } from "./router.js";
 import { watchAuthState, currentRole, signOut } from "./auth.js";
 import { hasFirebaseError, whenFirebaseReady } from "./firebase.js";
-import { el } from "./util.js";
+import { el, toast } from "./util.js";
 import { isDark, toggleTheme } from "./theme.js";
 
 import { renderLogin } from "./views/login.js";
@@ -120,6 +120,40 @@ function updateBackButton() {
 }
 document.getElementById("backBtn").addEventListener("click", () => history.back());
 window.addEventListener("hashchange", updateBackButton);
+
+// --- Android hardware/gesture back button -----------------------------
+// The manifest's android:enableOnBackInvokedCallback="false" opts out of
+// Android 13+'s predictive-back animation, but on-device testing showed
+// the system gesture can still finish() the (single-)Activity outright,
+// closing the app, instead of falling through to WebView history — this
+// is a known inconsistency across OEM Android builds. Registering a
+// listener on Capacitor's App plugin is the robust fix: Capacitor routes
+// both the hardware button AND the gesture through this JS event instead
+// of deciding natively, as long as a listener is attached (see
+// mobile/plugins-src/capacitor-plugins.js). Only present natively —
+// window.CapPlugins is undefined in a plain browser tab.
+const CapApp = window.CapPlugins?.App;
+if (CapApp) {
+  let lastBackPressAt = 0;
+  CapApp.addListener("backButton", () => {
+    const path = location.hash.slice(1) || "/";
+    if (!HOME_PATHS.has(path)) {
+      history.back();
+      return;
+    }
+    // On a home screen there's nowhere useful to go back to — require a
+    // second press within 2s before actually exiting, the standard
+    // Android "press back again to exit" pattern, instead of the single
+    // swipe instantly closing the app.
+    const now = Date.now();
+    if (now - lastBackPressAt < 2000) {
+      CapApp.exitApp();
+    } else {
+      lastBackPressAt = now;
+      toast("Press back again to exit");
+    }
+  });
+}
 
 // --- Boot ---------------------------------------------------------------
 async function boot() {

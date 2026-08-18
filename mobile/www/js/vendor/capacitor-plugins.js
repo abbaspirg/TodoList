@@ -1146,6 +1146,58 @@
     }
   });
 
+  // node_modules/@capacitor/app/dist/esm/web.js
+  var web_exports3 = {};
+  __export(web_exports3, {
+    AppWeb: () => AppWeb
+  });
+  var AppWeb;
+  var init_web3 = __esm({
+    "node_modules/@capacitor/app/dist/esm/web.js"() {
+      init_dist();
+      AppWeb = class extends WebPlugin {
+        constructor() {
+          super();
+          this.handleVisibilityChange = () => {
+            const data = {
+              isActive: document.hidden !== true
+            };
+            this.notifyListeners("appStateChange", data);
+            if (document.hidden) {
+              this.notifyListeners("pause", null);
+            } else {
+              this.notifyListeners("resume", null);
+            }
+          };
+          document.addEventListener("visibilitychange", this.handleVisibilityChange, false);
+        }
+        exitApp() {
+          throw this.unimplemented("Not implemented on web.");
+        }
+        async getInfo() {
+          throw this.unimplemented("Not implemented on web.");
+        }
+        async getLaunchUrl() {
+          return { url: "" };
+        }
+        async getState() {
+          return { isActive: document.hidden !== true };
+        }
+        async minimizeApp() {
+          throw this.unimplemented("Not implemented on web.");
+        }
+        async toggleBackButtonHandler() {
+          throw this.unimplemented("Not implemented on web.");
+        }
+        async getAppLanguage() {
+          return {
+            value: navigator.language.split("-")[0].toLowerCase()
+          };
+        }
+      };
+    }
+  });
+
   // plugins-src/capacitor-plugins.js
   init_dist();
 
@@ -1212,8 +1264,14 @@
   });
   f();
 
+  // node_modules/@capacitor/app/dist/esm/index.js
+  init_dist();
+  var App = registerPlugin("App", {
+    web: () => Promise.resolve().then(() => (init_web3(), web_exports3)).then((m) => new m.AppWeb())
+  });
+
   // plugins-src/capacitor-plugins.js
-  window.CapPlugins = { Capacitor, Share, Filesystem, Directory };
+  window.CapPlugins = { Capacitor, Share, Filesystem, Directory, App };
 })();
 /*! Bundled license information:
 
