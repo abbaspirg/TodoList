@@ -1,0 +1,56 @@
+import { el, mount, initials } from "../util.js";
+import { watchAllResults, publishResult } from "../data.js";
+import { FEST_ID } from "../firebase-config.js";
+import { navigate } from "../router.js";
+
+const MEDALS = { 1: "🥇", 2: "🥈", 3: "🥉" };
+
+export async function renderAdminResults() {
+  const listHost = el("div", {});
+  mount(el("div", {}, [el("h1", { class: "page-title" }, "Results & Analytics"), listHost]));
+
+  watchAllResults(FEST_ID, (results) => {
+    if (results.length === 0) {
+      listHost.replaceChildren(
+        el("div", { class: "card empty-state" }, "No results yet. Open an item for scoring to get started."),
+      );
+      return;
+    }
+    listHost.replaceChildren(
+      ...results.map((result) =>
+        el("div", { class: "card" }, [
+          el("div", { class: "btn-row", style: "justify-content:space-between;align-items:center" }, [
+            el("strong", {}, result.itemName || result.itemId),
+            !result.published
+              ? el("button", { class: "btn secondary", onclick: () => publishResult(FEST_ID, result.itemId) }, "Publish")
+              : el("span", { class: "chip status-completed" }, "Published"),
+          ]),
+          el(
+            "div",
+            { class: "medal-row", style: "margin-top:10px" },
+            (result.rankings || []).slice(0, 3).map((r) =>
+              el("div", { class: "medal-card" }, [
+                el("div", { class: "medal" }, MEDALS[r.rank] || `#${r.rank}`),
+                el("div", { class: "avatar", style: "margin:4px auto" }, initials(r.studentName)),
+                el("div", { class: "name" }, r.studentName),
+                el("div", { class: "group" }, `${r.groupName} · ${r.points} pts`),
+                el(
+                  "button",
+                  {
+                    class: "btn secondary",
+                    style: "margin-top:6px;font-size:0.72rem;padding:6px 10px",
+                    onclick: () => {
+                      window.__posterData = { result, ranking: r };
+                      navigate("/poster");
+                    },
+                  },
+                  "Poster",
+                ),
+              ]),
+            ),
+          ),
+        ]),
+      ),
+    );
+  });
+}

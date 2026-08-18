@@ -2,7 +2,7 @@
   "indexes": [
     {
       "collectionGroup": "registrations",
-      "queryScope": "COLLECTION_GROUP",
+      "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "itemId", "order": "ASCENDING" },
         { "fieldPath": "groupId", "order": "ASCENDING" }

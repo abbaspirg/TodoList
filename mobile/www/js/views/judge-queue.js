@@ -1,0 +1,60 @@
+import { el, mount } from "../util.js";
+import { watchJudges, watchItems } from "../data.js";
+import { FEST_ID } from "../firebase-config.js";
+import { auth } from "../firebase.js";
+import { navigate } from "../router.js";
+import { signOut } from "../auth.js";
+
+export async function renderJudgeQueue() {
+  const listHost = el("div", {});
+  mount(
+    el("div", {}, [
+      el("div", { class: "btn-row", style: "justify-content:space-between;align-items:center" }, [
+        el("h1", { class: "page-title" }, "My Items"),
+        el("button", { class: "btn secondary", onclick: signOut }, "Sign out"),
+      ]),
+      listHost,
+    ]),
+  );
+
+  let items = [];
+  let myAssignedIds = [];
+
+  function render() {
+    const myItems = items
+      .filter((i) => myAssignedIds.includes(i.id))
+      .sort((a, b) => (a.status === "ongoing" ? -1 : b.status === "ongoing" ? 1 : 0));
+
+    if (myItems.length === 0) {
+      listHost.replaceChildren(el("div", { class: "card empty-state" }, "No items assigned to you yet."));
+      return;
+    }
+    listHost.replaceChildren(
+      ...myItems.map((item) => {
+        const ongoing = item.status === "ongoing";
+        return el(
+          "div",
+          {
+            class: "card",
+            style: ongoing ? "border-color:#0f6e4f;cursor:pointer" : "opacity:0.6",
+            onclick: ongoing ? () => navigate(`/judge/scoring/${item.id}`) : undefined,
+          },
+          [
+            el("div", { class: "title" }, item.name),
+            el("span", { class: `chip status-${item.status}` }, item.status),
+          ],
+        );
+      }),
+    );
+  }
+
+  watchItems(FEST_ID, null, (i) => {
+    items = i;
+    render();
+  });
+  watchJudges(FEST_ID, (judges) => {
+    const me = judges.find((j) => j.authUid === auth.currentUser?.uid);
+    myAssignedIds = me?.assignedItemIds || [];
+    render();
+  });
+}

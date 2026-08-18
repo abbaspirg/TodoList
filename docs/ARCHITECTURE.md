@@ -2,8 +2,9 @@
 
 ## 1. Overview
 
-A cross-platform mobile app (Flutter, single codebase for Android + iOS) that runs a
-Meelad Fest (Islamic cultural/arts competition) end-to-end: registering students into
+A cross-platform mobile app (plain HTML/CSS/JS wrapped natively via Capacitor, one
+codebase for Android + iOS + web) that runs a Meelad Fest (Islamic cultural/arts
+competition) end-to-end: registering students into
 two competing Groups, defining categories and competition items, registering
 participants, letting judges score participants live, computing results/rankings,
 tracking the overall Group vs Group score, and auto-generating shareable result
@@ -20,92 +21,89 @@ security rules:
 
 ## 2. Tech Stack
 
-- **Client:** Flutter (Dart) — one codebase for Android/iOS, plus web build for the
-  "Public Display" screen (can run on a lobby TV/kiosk).
-- **State management:** Riverpod (`flutter_riverpod` + code-gen `riverpod_generator`).
-- **Models:** `freezed` + `json_serializable` for immutable, serializable data classes.
-- **Navigation:** `go_router`, with role-based redirect guards.
+- **Client:** Plain HTML/CSS/JS (ES modules, no framework, no bundler) — the same
+  "no build step" approach as this repo's earlier Todo app — wrapped as a native
+  Android (and, later, iOS) app via **Capacitor**. Capacitor was chosen over
+  Flutter/React Native specifically because it wraps an existing static web
+  app instead of requiring a separate native-toolchain build for every local
+  change: the web app runs directly in any browser for fast iteration, and
+  `npx cap sync` is the only step that touches the native project.
+- **Navigation:** a small hand-rolled hash router (`js/router.js`) with
+  role-based redirect guards — no dependency, matches the "no build step"
+  philosophy.
 - **Backend:** Firebase, chosen because scoring is inherently a live/real-time,
   multi-writer problem (many judges submitting concurrently) and the fest is a
   short, bursty event — a managed real-time backend avoids building a custom
   WebSocket server for a one-week-a-year workload.
   - **Firestore** — primary database, real-time listeners for judges' live
-    participant lists and the public leaderboard.
-  - **Firebase Auth** — email/password (or phone OTP) for Admin & Judges; custom
-    claims carry `role` and (for judges) `assignedItemIds`.
+    participant lists and the public leaderboard. The client uses the
+    Firebase JS SDK (modular API), imported straight from the `gstatic.com`
+    CDN as ES modules — no npm bundling required, works the same in a browser
+    tab and inside the Capacitor WebView.
+  - **Firebase Auth** — email/password for Admin & Judges; custom claims carry
+    `role` and (for judges) `assignedItemIds`.
   - **Cloud Storage** — student photos, generated poster images.
-  - **Cloud Functions** — server-side, tamper-proof result computation (rank +
-    group totals), poster template rendering trigger, notifications.
-  - **Cloud Messaging (FCM)** — "your item is now open for scoring" push to
-    judges; "results published" push to public/students.
+  - **Cloud Functions** (`functions/`, TypeScript) — server-side, tamper-proof
+    result computation (rank + group totals), judge-assignment (writes the
+    Auth custom claims a client can't set on itself).
 - **Offline:** Firestore's built-in offline persistence — judges can keep scoring
   on a flaky venue Wi-Fi; writes sync once connectivity returns.
-- **Poster generation:** client-side widget-to-image (`RepaintBoundary` +
-  `screenshot`/`share_plus`) for on-device instant preview & share, with an
-  equivalent Cloud Function (headless Chromium via a small Node service, or
-  `image` package templating) that renders the same poster server-side so it can
-  be regenerated/re-shared later without the original device.
+- **Poster generation:** client-side `<canvas>` rendering (photo, name, group,
+  rank, item name, fest branding) exported via `canvas.toBlob()`, offered
+  through the Web Share API (`navigator.share`) where supported, falling back
+  to a plain download link — works identically in a browser and inside the
+  Capacitor WebView, no native plugin required.
 
-## 3. Layered / Feature-First Architecture
+## 3. Project Structure
 
 ```
-lib/
-  core/
-    theme/              # colors, typography, both group brand colors
-    router/              # go_router config + role guards
-    constants/            # point-system constants, enums
-    services/
-      auth_service.dart          # Firebase Auth wrapper
-      firestore_service.dart     # generic CRUD helpers
-      storage_service.dart       # photo/poster upload
-      poster_render_service.dart # widget -> image
-      notification_service.dart  # FCM
-  models/                 # freezed data classes (mirrors DB schema, see below)
-    student.dart
-    group.dart
-    category.dart
-    item.dart
-    participant.dart
-    judge.dart
-    score.dart
-    result.dart
-    poster.dart
-  data/
-    repositories/          # interfaces
-    repositories_firestore/  # Firestore implementations of the interfaces
-  features/
-    auth/                  # login, role redirect
-    admin/
-      dashboard/
-      students/            # list, add/edit, group assignment, bulk import
-      groups/               # 2 fixed groups, editable name/color/logo
-      categories/            # dynamic category CRUD
-      items/                 # item CRUD, map item -> category, schedule, stage status
-      registrations/         # assign students to items (per category/group)
-      judges/                 # judge accounts, assign judges to items
-      results/                # publish results, override/finalize ties
-      analytics/              # group-vs-group live score, item-wise breakdown
-    judge_panel/
-      item_queue/             # items assigned to this judge, "open for scoring" state
-      scoring/                 # live participant list + marks entry per item
-    results_public/
-      leaderboard/             # live Group A vs Group B total
-      item_results/             # 1st/2nd/3rd per item
-    poster/
-      poster_preview/          # generated poster + share/download
-  main.dart
+mobile/                       # the Capacitor project — see mobile/README-like notes below
+  package.json                 # @capacitor/* deps
+  capacitor.config.json         # appId, appName, webDir
+  android/                       # native Android project (generated by `npx cap add android`,
+                                  # committed to the repo — Capacitor's normal convention,
+                                  # unlike a Flutter/Gradle build-from-scratch)
+  www/                            # the actual app — this is what ships to every platform
+    index.html                    # shell: header/nav + <main id="view"> the router renders into
+    style.css
+    js/
+      firebase-config.js           # Firebase project config (TODO placeholders until configured)
+      firebase.js                   # Firebase SDK init, re-exports the modular functions used
+      auth.js                        # sign-in/out, role-from-custom-claim
+      data.js                         # one function per Firestore operation (mirrors DB schema)
+      point-system.js                  # rank -> points table (mirrored in functions/src/pointSystem.ts)
+      router.js                         # hash router + guards
+      util.js                            # el()/mount() DOM helpers, toast, id generation
+      app.js                              # entry point: registers routes, wires auth-state redirect
+      views/
+        login.js
+        admin-dashboard.js
+        admin-students.js                  # list, add/edit, group assignment
+        admin-groups.js                      # 2 fixed groups, editable name/color
+        admin-categories.js                   # dynamic category CRUD
+        admin-items.js                          # item CRUD, map item -> category, "open for scoring"
+        admin-registrations.js                    # assign students to items (per category/group)
+        admin-judges.js                             # judge accounts, assign judges to items
+        admin-results.js                              # publish results, jump to poster generator
+        judge-queue.js                                  # items assigned to this judge
+        judge-scoring.js                                  # live participant list + marks entry
+        public-leaderboard.js                               # live Group A vs Group B total
+        public-results.js                                     # 1st/2nd/3rd per item
+        poster.js                                               # canvas poster + download/share
+functions/                    # Cloud Functions (TypeScript) — same regardless of client framework
+firestore.rules, firestore.indexes.json, storage.rules
 ```
 
-- **Presentation** (screens/widgets) only reads from Riverpod providers and calls
-  notifier methods — no direct Firestore calls in widgets.
-- **State** (Riverpod notifiers/streams) exposes `AsyncValue<T>` streams built on
-  top of repositories; screens react to Firestore's real-time streams
-  automatically (no manual refresh needed for judges' or public's live views).
-- **Domain** (repository interfaces) decouples business logic from Firestore so
-  the backend could be swapped later (e.g. to a self-hosted Postgres+Node API)
-  without touching UI code.
-- **Data** (Firestore repository implementations) is the only layer that imports
-  `cloud_firestore`.
+- **Views** (`js/views/*.js`) only import `js/data.js`, `js/auth.js`, and
+  `js/util.js` — never `js/firebase.js` directly — so Firestore's specific API
+  stays in one place; swapping backends later would only touch `data.js`.
+- **`js/data.js`** is the one file that imports the Firebase SDK for reads/writes,
+  wrapping every collection from `docs/DATABASE_SCHEMA.md` as a plain function
+  (`watchStudents`, `addItem`, `submitScore`, ...) — the JS equivalent of the
+  repository layer a typed framework would use.
+- Real-time views (Judge Panel, public leaderboard) subscribe via
+  `onSnapshot` and re-render on every change; there is no manual refresh
+  button anywhere in the app.
 
 ## 4. Roles & Access Control
 
@@ -156,9 +154,11 @@ lib/
 - **Multi-fest / multi-year:** top-level `fests/{festId}` document scopes every
   collection below it, so the same app instance can run next year's fest without
   data collisions, and past fests remain browsable as read-only archives.
-- **Localization:** `flutter_localizations` with English + Malayalam (and
-  optionally Arabic) since Meelad fests are commonly run by Malayalam-medium
-  madrasas — all UI strings externalized from day one via `.arb` files.
+- **Localization:** not yet implemented in this build — recommended next step
+  is externalizing every UI string in `js/views/*.js` into a small
+  `js/i18n.js` lookup table (English + Malayalam, optionally Arabic, since
+  Meelad fests are commonly run by Malayalam-medium madrasas) rather than
+  retrofitting it once the view count grows further.
 - **Accessibility:** large tap targets and high-contrast group colors for the
   Judge scoring screen (used quickly, under time pressure, sometimes by older
   judges).

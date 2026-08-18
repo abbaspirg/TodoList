@@ -166,14 +166,15 @@ fests/{festId}
   groups/{groupId}
   categories/{categoryId}
   students/{studentId}
-  items/{itemId}
-    judges/{judgeId}            # subcollection: item -> assigned judges (or itemJudges array field)
-  registrations/{registrationId}
-  scores/{scoreId}
+  items/{itemId}                # assignedJudgeIds: [judgeId, ...] denormalized onto the doc
   results/{itemId}              # one result doc per item, doc ID == itemId
   groupTotals/{groupId}         # one doc per group, doc ID == groupId
   posters/{posterId}
   judges/{judgeId}
+
+registrations/{registrationId}  # flat top-level, filtered by itemId field —
+scores/{scoreId}                # simpler security rules (both are queried
+                                 # across the whole app, not per-fest-scoped)
 ```
 
 - Denormalize `groupName`, `groupColorHex`, `studentName`, `studentPhotoUrl`

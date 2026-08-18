@@ -13,8 +13,8 @@ flowchart TD
     G[Public Display<br/>no login] --> H[Live Leaderboard]
 ```
 
-A single app binary serves all three roles; `go_router` redirects post-login
-based on the Firebase Auth custom claim `role`. The Public Display flow is
+A single app binary serves all three roles; the hash router (`mobile/www/js/router.js`)
+redirects post-login based on the Firebase Auth custom claim `role`. The Public Display flow is
 reachable without login via a "View Results" entry point on the login screen
 (for parents/students), and separately as a dedicated kiosk build for a lobby
 TV.
@@ -143,8 +143,10 @@ flowchart LR
 - **Empty states** are written as next-step prompts, not just "no data" (e.g.
   Items screen with zero items shows "Add your first competition item" with
   the Add button inline).
-- **Loading/error states** wrap every Firestore stream via `AsyncValue.when`
-  (Riverpod), so a lost-connection judge sees a clear retry affordance instead
+- **Loading/error states**: every Firestore `onSnapshot` listener renders a
+  neutral "Loading…" placeholder until its first callback and a toast on a
+  caught write error, so a lost-connection judge sees a clear signal instead
   of a frozen screen.
-- **Localization-ready**: all copy sourced from `.arb` files (English +
-  Malayalam at minimum) from the first screen built, not retrofitted later.
+- **Localization**: not yet implemented — see `docs/ARCHITECTURE.md`
+  "Non-Functional Notes" for the recommended approach (English + Malayalam at
+  minimum, since Meelad fests are commonly run by Malayalam-medium madrasas).

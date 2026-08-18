@@ -1,0 +1,24 @@
+{
+  "name": "madrasa-fest-mobile",
+  "version": "1.0.0",
+  "description": "Android app wrapper for the Madrasa Meelad Fest Manager web app, built with Capacitor.",
+  "private": true,
+  "scripts": {
+    "sync": "cap sync android",
+    "assets": "capacitor-assets generate --android",
+    "open:android": "cap open android"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/cli": "^8.5.0",
+    "@capacitor/core": "^8.5.0",
+    "@capacitor/share": "^8.0.0",
+    "@capacitor/filesystem": "^8.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^3.0.5"
+  }
+}
