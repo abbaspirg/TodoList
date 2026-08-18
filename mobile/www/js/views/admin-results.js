@@ -33,7 +33,9 @@ export async function renderAdminResults() {
                 el("div", { class: "medal" }, MEDALS[r.rank] || `#${r.rank}`),
                 el("div", { class: "avatar", style: "margin:4px auto" }, initials(r.studentName)),
                 el("div", { class: "name" }, r.studentName),
-                el("div", { class: "group" }, `${r.groupName} · ${r.points} pts`),
+                el("div", { class: "group" }, r.groupName),
+                el("div", { class: "subtitle" }, `${r.totalMarks?.toFixed(1) ?? "—"}/${r.maxScore ?? "—"} · ${r.points} pts`),
+                r.grade ? el("span", { class: "chip" }, `Grade ${r.grade}`) : null,
                 el(
                   "button",
                   {
@@ -49,6 +51,21 @@ export async function renderAdminResults() {
               ]),
             ),
           ),
+          (result.rankings || []).length > 3
+            ? el(
+                "ul",
+                { class: "list", style: "margin-top:8px" },
+                result.rankings.slice(3).map((r) =>
+                  el("li", { class: "list-row" }, [
+                    el("span", {}, `#${r.rank}`),
+                    el("span", { style: "flex:1" }, [r.studentName, el("div", { class: "subtitle" }, r.groupName)]),
+                    el("span", { class: "subtitle" }, `${r.totalMarks?.toFixed(1) ?? "—"}/${r.maxScore ?? "—"}`),
+                    r.grade ? el("span", { class: "chip" }, r.grade) : null,
+                    el("span", { class: "subtitle" }, `${r.points} pts`),
+                  ]),
+                ),
+              )
+            : null,
         ]),
       ),
     );

@@ -134,27 +134,42 @@ erDiagram
   supported). Group is a first-class, admin-managed entity (name/color),
   created/renamed/deleted per fest like Category or Item, not a hardcoded
   enum.
+- **`STUDENT.categoryId`** — which age Category (Sub-Junior, Junior, ...) the
+  student competes in; Registrations only ever offer a category's own
+  students for its items, so this must be set before a student can be
+  registered for anything.
 - **`ITEM.type`** — `individual` | `group` (some Meelad items, e.g. group
   songs/Mappila Paattu, register a *team* of students as one participant entry).
 - **`ITEM.stageType`** — `stage` | `off-stage`, common Meelad-fest distinction
   affecting scheduling.
+- **`ITEM.maxScore`** — what judges mark that item out of; configurable per
+  item (e.g. 10 for a solo recitation, 20 for a group song) rather than a
+  fest-wide constant, since items vary widely in scoring convention.
 - **`REGISTRATION.chestNumber`** — printed on the student's chest number badge;
   unique per item, used by judges to identify participants without needing
   names (common competition practice, reduces bias).
-- **`SCORE.criteriaMarks`** — JSON map of sub-criteria to marks, e.g.
-  `{ "voice": 8, "pronunciation": 9, "presentation": 7 }`; `totalMarks` is the
-  sum/weighted average, computed client-side on submit and re-verified by the
-  Cloud Function.
-- **`RESULT.rankings`** — JSON array `[{ registrationId, rank, points }, ...]`,
-  written once by the result-computation Cloud Function; `published` gates
-  visibility on the public leaderboard (Admin can review before publishing).
+- **`SCORE.totalMarks`** — a single judge's mark for one participant, out of
+  that item's `maxScore`; averaged across all assigned judges' submissions to
+  get the mark used for ranking and grading.
+- **`RESULT.rankings`** — JSON array of
+  `{ registrationId, rank, totalMarks, maxScore, grade, points }`, written
+  once by the result-computation Cloud Function; `published` gates visibility
+  on the public leaderboard (Admin can review before publishing). Every
+  registrant gets an entry, not just the top 3 — grade doesn't depend on
+  rank, so a 5th-place participant can still earn an A grade and its points.
 - **`GROUP_TOTAL`** — one row per group, updated transactionally every time a
   `RESULT` is finalized; this is what the "overall grand total" screen reads —
   it is a materialized aggregate, not computed live from all results every time,
   so the leaderboard stays O(1) to read regardless of how many items have run.
-- Point system (rank → points) is a configurable table per fest, not hardcoded,
-  e.g.: 1st = 5, 2nd = 3, 3rd = 1, participation = 1 (grade items like A/B/C
-  grading, common in Meelad fests, can instead map grade → points).
+- **Points are rank points + grade points, additive** — the common
+  Kalolsavam-style fest convention. Rank points come from a rank → points
+  table (1st = 5, 2nd = 3, 3rd = 1, else a flat participation point,
+  configurable). Grade points come from a *separate* percentage-of-maxScore
+  → grade table (A ≥ 90% = 5pts, B ≥ 75% = 3pts, C ≥ 60% = 1pt, configurable)
+  applied to every participant regardless of rank. See
+  `mobile/www/js/point-system.js` (client + Local Test Mode) and
+  `functions/src/pointSystem.ts` (Cloud Function) — the two are kept in sync
+  by hand since they can't share source.
 
 ## 3. Firestore Mapping
 

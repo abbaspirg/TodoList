@@ -29,6 +29,12 @@ export async function renderAdminItems() {
       el("option", { value: "individual", selected: (existing?.type ?? "individual") === "individual" || undefined }, "Individual"),
       el("option", { value: "group", selected: existing?.type === "group" || undefined }, "Group"),
     ]);
+    const maxScoreInput = el("input", {
+      type: "number",
+      min: "1",
+      step: "1",
+      value: String(existing?.maxScore ?? 10),
+    });
 
     formHost.replaceChildren(
       el(
@@ -37,12 +43,14 @@ export async function renderAdminItems() {
           class: "card",
           onsubmit: async (e) => {
             e.preventDefault();
+            const maxScore = Number(maxScoreInput.value);
             const item = {
               id: existing?.id || genId(),
               festId: FEST_ID,
               name: nameInput.value.trim(),
               categoryId: categorySelect.value,
               type: typeSelect.value,
+              maxScore: maxScore > 0 ? maxScore : 10,
             };
             if (!item.name || !item.categoryId) return;
             await (existing ? updateItem(FEST_ID, item) : addItem(FEST_ID, item));
@@ -55,6 +63,15 @@ export async function renderAdminItems() {
           el("div", { class: "field" }, [el("label", {}, "Item name"), nameInput]),
           el("div", { class: "field" }, [el("label", {}, "Category"), categorySelect]),
           el("div", { class: "field" }, [el("label", {}, "Type"), typeSelect]),
+          el("div", { class: "field" }, [
+            el("label", {}, "Maximum score"),
+            maxScoreInput,
+          ]),
+          el(
+            "p",
+            { class: "subtitle" },
+            "What judges mark out of, e.g. 10 for a solo item, 20 for a group song.",
+          ),
           el("div", { class: "btn-row" }, [
             el("button", { class: "btn", type: "submit" }, "Save"),
             el("button", { class: "btn secondary", type: "button", onclick: () => formHost.replaceChildren() }, "Cancel"),
@@ -75,7 +92,7 @@ export async function renderAdminItems() {
         el("li", { class: "list-row" }, [
           el("div", { style: "flex:1", onclick: () => openForm(item) }, [
             el("div", { class: "title" }, item.name),
-            el("div", { class: "subtitle" }, `${categoryName(item.categoryId)} · ${item.type}`),
+            el("div", { class: "subtitle" }, `${categoryName(item.categoryId)} · ${item.type} · out of ${item.maxScore ?? 10}`),
           ]),
           el("span", { class: `chip status-${item.status}` }, item.status),
           item.status === "pending"

@@ -184,7 +184,10 @@ async function drawPoster(canvas, result, ranking) {
 
   ctx.font = "28px sans-serif";
   ctx.fillStyle = "rgba(255,255,255,0.6)";
-  ctx.fillText(`Rank ${ranking.rank}`, width / 2, height - 60);
+  const footer = ranking.grade
+    ? `Rank ${ranking.rank} · Grade ${ranking.grade}`
+    : `Rank ${ranking.rank}`;
+  ctx.fillText(footer, width / 2, height - 60);
 }
 
 function loadImage(src) {

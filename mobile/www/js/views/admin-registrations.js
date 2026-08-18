@@ -72,8 +72,17 @@ export async function renderAdminRegistrations() {
       listHost.replaceChildren("Choose a category and item to register students.");
       return;
     }
+    // Only students placed in this category are eligible for its items —
+    // see js/views/admin-students.js "Category" field.
+    const eligible = students.filter((s) => s.categoryId === selectedCategoryId);
+    if (eligible.length === 0) {
+      listHost.replaceChildren(
+        "No students in this category yet — set a student's Category under Students first.",
+      );
+      return;
+    }
     listHost.replaceChildren(
-      ...students.map((s, i) => {
+      ...eligible.map((s, i) => {
         const group = groups.find((g) => g.id === s.groupId);
         const reg = registered.get(s.id);
         const checkbox = el("input", {

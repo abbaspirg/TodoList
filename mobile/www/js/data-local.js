@@ -8,7 +8,7 @@
 // relevant to that query.
 import { getAll, get, upsert, remove, subscribe } from "./local-store.js";
 import { genId } from "./util.js";
-import { pointsForRank } from "./point-system.js";
+import { pointsForRank, gradeForMark, pointsForGrade } from "./point-system.js";
 
 // --- Groups -----------------------------------------------------------
 export function watchGroups(_festId, cb) {
@@ -173,6 +173,7 @@ function maybeFinalizeItem(itemId) {
   );
   if (!allScored) return;
 
+  const maxScore = item.maxScore || 10;
   const ranked = registrations
     .map((r) => {
       const marks = scoresByReg.get(r.id) || [];
@@ -180,16 +181,25 @@ function maybeFinalizeItem(itemId) {
       return { ...r, totalMarks };
     })
     .sort((a, b) => b.totalMarks - a.totalMarks)
-    .map((entry, index) => ({
-      registrationId: entry.id,
-      studentName: entry.studentName,
-      studentPhotoUrl: entry.studentPhotoUrl || null,
-      groupId: entry.groupId,
-      groupName: entry.groupName,
-      rank: index + 1,
-      totalMarks: entry.totalMarks,
-      points: pointsForRank(index + 1),
-    }));
+    .map((entry, index) => {
+      const rank = index + 1;
+      const grade = gradeForMark(entry.totalMarks, maxScore);
+      return {
+        registrationId: entry.id,
+        studentName: entry.studentName,
+        studentPhotoUrl: entry.studentPhotoUrl || null,
+        groupId: entry.groupId,
+        groupName: entry.groupName,
+        rank,
+        totalMarks: entry.totalMarks,
+        maxScore,
+        grade,
+        // Rank points (1st/2nd/3rd, else a flat participation point) +
+        // grade points (0 below a C) — see js/point-system.js for why
+        // both are additive.
+        points: pointsForRank(rank) + pointsForGrade(grade),
+      };
+    });
 
   upsert("results", {
     itemId,

@@ -3,25 +3,27 @@ import { watchItem, watchRegistrations, watchScoresByJudge, submitScore } from "
 import { FEST_ID } from "../firebase-config.js";
 import { currentUserId } from "../auth.js";
 
-const DEFAULT_CRITERIA = ["Voice", "Pronunciation", "Presentation"];
+const DEFAULT_MAX_SCORE = 10;
 
 export async function renderJudgeScoring({ itemId }) {
   const listHost = el("div", {});
   mount(el("div", {}, [el("h1", { class: "page-title" }, "Score Participants"), listHost]));
 
-  let criteria = DEFAULT_CRITERIA;
+  let maxScore = DEFAULT_MAX_SCORE;
   let registrations = [];
   let submittedByRegId = new Map();
   const judgeId = currentUserId() || "";
 
   function render() {
     listHost.replaceChildren(
-      ...registrations.map((reg) => renderParticipantCard(reg, criteria, submittedByRegId.get(reg.id), judgeId, itemId)),
+      ...registrations.map((reg) =>
+        renderParticipantCard(reg, maxScore, submittedByRegId.get(reg.id), judgeId, itemId),
+      ),
     );
   }
 
   watchItem(FEST_ID, itemId, (item) => {
-    criteria = item?.scoringCriteria || DEFAULT_CRITERIA;
+    maxScore = item?.maxScore || DEFAULT_MAX_SCORE;
     render();
   });
   watchRegistrations(itemId, (regs) => {
@@ -34,35 +36,22 @@ export async function renderJudgeScoring({ itemId }) {
   });
 }
 
-function renderParticipantCard(reg, criteria, existingScore, judgeId, itemId) {
+function renderParticipantCard(reg, maxScore, existingScore, judgeId, itemId) {
   const locked = Boolean(existingScore);
-  const marks = {};
-  const valueLabels = {};
+  let mark = existingScore?.totalMarks ?? Math.round(maxScore / 2);
 
-  const sliderRows = criteria.map((criterion) => {
-    marks[criterion] = existingScore?.criteriaMarks?.[criterion] ?? 5;
-    const valueLabel = el("span", { class: "value" }, String(marks[criterion]));
-    valueLabels[criterion] = valueLabel;
-    const slider = el("input", {
-      type: "range",
-      min: "0",
-      max: "10",
-      value: String(marks[criterion]),
-      disabled: locked || undefined,
-      oninput: (e) => {
-        marks[criterion] = Number(e.target.value);
-        valueLabel.textContent = e.target.value;
-        totalLabel.textContent = `Total: ${Object.values(marks).reduce((a, b) => a + b, 0)}`;
-      },
-    });
-    return el("div", { class: "slider-row" }, [el("label", {}, criterion), slider, valueLabel]);
+  const valueLabel = el("span", { class: "value" }, String(mark));
+  const slider = el("input", {
+    type: "range",
+    min: "0",
+    max: String(maxScore),
+    value: String(mark),
+    disabled: locked || undefined,
+    oninput: (e) => {
+      mark = Number(e.target.value);
+      valueLabel.textContent = e.target.value;
+    },
   });
-
-  const totalLabel = el(
-    "strong",
-    {},
-    `Total: ${Object.values(marks).reduce((a, b) => a + b, 0)}`,
-  );
 
   const submitBtn = el(
     "button",
@@ -73,13 +62,7 @@ function renderParticipantCard(reg, criteria, existingScore, judgeId, itemId) {
         submitBtn.disabled = true;
         submitBtn.textContent = "Submitting…";
         try {
-          await submitScore({
-            itemId,
-            registrationId: reg.id,
-            judgeId,
-            criteriaMarks: marks,
-            totalMarks: Object.values(marks).reduce((a, b) => a + b, 0),
-          });
+          await submitScore({ itemId, registrationId: reg.id, judgeId, totalMarks: mark, maxScore });
         } finally {
           submitBtn.textContent = "Submitted";
         }
@@ -96,10 +79,11 @@ function renderParticipantCard(reg, criteria, existingScore, judgeId, itemId) {
       ]),
       locked ? el("span", {}, "🔒") : null,
     ]),
-    ...sliderRows,
-    el("div", { class: "btn-row", style: "justify-content:space-between;align-items:center;margin-top:8px" }, [
-      totalLabel,
-      submitBtn,
+    el("div", { class: "slider-row" }, [
+      el("label", {}, `Score (out of ${maxScore})`),
+      slider,
+      valueLabel,
     ]),
+    el("div", { class: "btn-row", style: "justify-content:flex-end;margin-top:8px" }, [submitBtn]),
   ]);
 }

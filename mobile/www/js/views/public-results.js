@@ -26,6 +26,8 @@ export async function renderPublicResults() {
                 el("div", { class: "avatar", style: "margin:4px auto" }, initials(r.studentName)),
                 el("div", { class: "name" }, r.studentName),
                 el("div", { class: "group" }, r.groupName),
+                el("div", { class: "subtitle" }, `${r.totalMarks?.toFixed(1) ?? "—"}/${r.maxScore ?? "—"}`),
+                r.grade ? el("span", { class: "chip" }, `Grade ${r.grade}`) : null,
               ]),
             ),
           ),

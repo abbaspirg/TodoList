@@ -1,9 +1,10 @@
 import { el, mount, initials, genId, toast, resizeImageFile } from "../util.js";
-import { watchStudents, watchGroups, addStudent, updateStudent, uploadStudentPhoto } from "../data.js";
+import { watchStudents, watchGroups, watchCategories, addStudent, updateStudent, uploadStudentPhoto } from "../data.js";
 import { FEST_ID } from "../firebase-config.js";
 
 export async function renderAdminStudents() {
   let groups = [];
+  let categories = [];
   let students = [];
   let search = "";
   let groupFilter = "";
@@ -57,11 +58,12 @@ export async function renderAdminStudents() {
     listHost.replaceChildren(
       ...filtered.map((s) => {
         const group = groups.find((g) => g.id === s.groupId);
+        const category = categories.find((c) => c.id === s.categoryId);
         return el("li", { class: "list-row", onclick: () => openForm(s) }, [
           el("div", { class: "avatar" }, s.photoUrl ? el("img", { src: s.photoUrl }) : initials(s.name)),
           el("div", { style: "flex:1" }, [
             el("div", { class: "title" }, s.name),
-            el("div", { class: "subtitle" }, s.className || ""),
+            el("div", { class: "subtitle" }, [s.className, category?.name].filter(Boolean).join(" · ")),
           ]),
           el("span", { class: "group-dot", style: `--group-color:${group?.colorHex || "#999"}` }),
         ]);
@@ -82,6 +84,12 @@ export async function renderAdminStudents() {
         el("option", { value: g.id, selected: existing?.groupId === g.id || undefined }, g.name),
       ),
     );
+    const categorySelectField = el("select", {}, [
+      el("option", { value: "" }, "No category"),
+      ...categories.map((c) =>
+        el("option", { value: c.id, selected: existing?.categoryId === c.id || undefined }, c.name),
+      ),
+    ]);
 
     const photoPreview = el(
       "div",
@@ -118,7 +126,15 @@ export async function renderAdminStudents() {
               const photoUrl = pendingPhotoCanvas
                 ? await uploadStudentPhoto(FEST_ID, studentId, pendingPhotoCanvas)
                 : existing?.photoUrl || null;
-              const student = { id: studentId, festId: FEST_ID, name, className: classInput.value.trim(), groupId, photoUrl };
+              const student = {
+                id: studentId,
+                festId: FEST_ID,
+                name,
+                className: classInput.value.trim(),
+                groupId,
+                categoryId: categorySelectField.value || null,
+                photoUrl,
+              };
               await (existing ? updateStudent(FEST_ID, student) : addStudent(FEST_ID, student));
               toast(existing ? "Student updated" : "Student added");
               formHost.replaceChildren();
@@ -138,6 +154,15 @@ export async function renderAdminStudents() {
           el("div", { class: "field" }, [el("label", {}, "Full name"), nameInput]),
           el("div", { class: "field" }, [el("label", {}, "Class"), classInput]),
           el("div", { class: "field" }, [el("label", {}, "Group"), groupSelectField]),
+          el("div", { class: "field" }, [
+            el("label", {}, "Category"),
+            categorySelectField,
+          ]),
+          el(
+            "p",
+            { class: "subtitle" },
+            "Sets which competition items this student is eligible for during registration.",
+          ),
           el("div", { class: "btn-row" }, [
             submitBtn,
             el("button", { class: "btn secondary", type: "button", onclick: () => formHost.replaceChildren() }, "Cancel"),
@@ -150,6 +175,10 @@ export async function renderAdminStudents() {
   watchGroups(FEST_ID, (g) => {
     groups = g;
     renderGroupOptions();
+    renderList();
+  });
+  watchCategories(FEST_ID, (c) => {
+    categories = c;
     renderList();
   });
   watchStudents(FEST_ID, null, (s) => {

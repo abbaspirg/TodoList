@@ -6,7 +6,7 @@
 import * as admin from "firebase-admin";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { onDocumentCreated } from "firebase-functions/v2/firestore";
-import { PointSystem, pointsForRank } from "./pointSystem";
+import { PointSystem, pointsForRank, gradeForMark, pointsForGrade } from "./pointSystem";
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -115,19 +115,30 @@ export const onScoreWrite = onDocumentCreated("scores/{scoreId}", async (event) 
   );
   if (!allScored) return;
 
+  const maxScore: number = item.maxScore || 10;
   const ranked = registrations
     .map((r) => {
-      const data = r.data();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const data = r.data() as any; // arbitrary registration doc shape — see docs/DATABASE_SCHEMA.md
       const marks = scoresByRegistration.get(r.id) ?? [];
       const average = marks.reduce((a, b) => a + b, 0) / marks.length;
       return { registrationId: r.id, ...data, totalMarks: average };
     })
     .sort((a, b) => b.totalMarks - a.totalMarks)
-    .map((entry, index) => ({
-      ...entry,
-      rank: index + 1,
-      points: pointsForRank(PointSystem.default, index + 1),
-    }));
+    .map((entry, index) => {
+      const rank = index + 1;
+      const grade = gradeForMark(PointSystem.default, entry.totalMarks, maxScore);
+      return {
+        ...entry,
+        rank,
+        maxScore,
+        grade,
+        // Rank points (1st/2nd/3rd, else a flat participation point) +
+        // grade points (0 below a C) — see pointSystem.ts for why both
+        // are additive.
+        points: pointsForRank(PointSystem.default, rank) + pointsForGrade(PointSystem.default, grade),
+      };
+    });
 
   await db.runTransaction(async (tx) => {
     const festId = itemRef.parent.parent!.id;
