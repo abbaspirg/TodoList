@@ -298,7 +298,7 @@ h1.page-title {
 
 #posterCanvas {
   width: 100%;
-  max-width: 360px;
+  max-width: 480px;
   border-radius: var(--radius);
   box-shadow: var(--shadow);
   display: block;

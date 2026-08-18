@@ -21,6 +21,11 @@
 
   <p class="footer-note">Madrasa Meelad Fest Manager</p>
 
+  <!-- Built by `npm run build:plugins` (esbuild) — the one bundled file in
+       this app, since Capacitor's native plugin packages are npm/ESM-only.
+       Must load before js/app.js so js/views/poster.js can read
+       window.CapPlugins. See mobile/plugins-src/capacitor-plugins.js. -->
+  <script src="js/vendor/capacitor-plugins.js"></script>
   <script type="module" src="js/app.js"></script>
 </body>
 </html>

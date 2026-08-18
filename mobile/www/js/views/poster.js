@@ -29,29 +29,100 @@ export async function renderPoster() {
 
   await drawPoster(canvas, result, ranking);
 
-  downloadBtn.addEventListener("click", () => {
+  const fileName = `${result.itemId}_rank${ranking.rank}.png`;
+
+  downloadBtn.addEventListener("click", () =>
+    runButtonAction(downloadBtn, "Download", "Saving…", () => downloadPoster(canvas, fileName)),
+  );
+  shareBtn.addEventListener("click", () =>
+    runButtonAction(shareBtn, "Share", "Preparing…", () => sharePoster(canvas, fileName, result.itemName)),
+  );
+}
+
+async function runButtonAction(btn, idleLabel, busyLabel, action) {
+  btn.disabled = true;
+  btn.textContent = busyLabel;
+  try {
+    await action();
+  } catch (err) {
+    toast(err?.message || "Something went wrong — please try again.");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = idleLabel;
+  }
+}
+
+// Plain `<a download>` and the Web Share API don't work inside a Capacitor
+// Android WebView (no download-manager/share-sheet integration for
+// blob:/data: URLs) — window.CapPlugins (built by `npm run build:plugins`,
+// see mobile/plugins-src/capacitor-plugins.js) is only defined when this
+// page is running inside the native app, so it doubles as the "are we
+// native" check; a plain browser tab (e.g. `npx serve` for local testing)
+// falls through to the ordinary web APIs, which do work there.
+function isNative() {
+  return Boolean(window.CapPlugins?.Capacitor?.isNativePlatform?.());
+}
+
+async function canvasToBase64Png(canvas) {
+  return canvas.toDataURL("image/png").split(",")[1];
+}
+
+async function downloadPoster(canvas, fileName) {
+  if (!isNative()) return downloadPosterWeb(canvas, fileName);
+
+  const { Filesystem, Directory } = window.CapPlugins;
+  let status = await Filesystem.checkPermissions();
+  if (status.publicStorage !== "granted") status = await Filesystem.requestPermissions();
+  if (status.publicStorage !== "granted") {
+    throw new Error("Storage permission is needed to save the poster.");
+  }
+
+  const data = await canvasToBase64Png(canvas);
+  await Filesystem.writeFile({ path: fileName, data, directory: Directory.Documents, recursive: true });
+  toast("Poster saved to Documents");
+}
+
+async function sharePoster(canvas, fileName, title) {
+  if (!isNative()) return sharePosterWeb(canvas, fileName, title);
+
+  const { Filesystem, Directory, Share } = window.CapPlugins;
+  const data = await canvasToBase64Png(canvas);
+  // Directory.Cache needs no runtime permission (unlike Documents), and a
+  // share sheet only needs the file to exist long enough to be read once.
+  const { uri } = await Filesystem.writeFile({ path: fileName, data, directory: Directory.Cache, recursive: true });
+  await Share.share({ title, files: [uri] });
+}
+
+function downloadPosterWeb(canvas, fileName) {
+  return new Promise((resolve, reject) => {
     canvas.toBlob((blob) => {
+      if (!blob) return reject(new Error("Couldn't render the poster image."));
       const url = URL.createObjectURL(blob);
-      const a = el("a", { href: url, download: `${result.itemId}_rank${ranking.rank}.png` });
+      const a = el("a", { href: url, download: fileName });
       document.body.append(a);
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
+      resolve();
     }, "image/png");
   });
+}
 
-  shareBtn.addEventListener("click", async () => {
+function sharePosterWeb(canvas, fileName, title) {
+  return new Promise((resolve, reject) => {
     canvas.toBlob(async (blob) => {
-      const file = new File([blob], `${result.itemId}_rank${ranking.rank}.png`, { type: "image/png" });
+      if (!blob) return reject(new Error("Couldn't render the poster image."));
+      const file = new File([blob], fileName, { type: "image/png" });
       if (navigator.share && navigator.canShare?.({ files: [file] })) {
         try {
-          await navigator.share({ files: [file], title: result.itemName });
-          return;
-        } catch {
-          // user cancelled or share failed — fall through to a toast below
+          await navigator.share({ files: [file], title });
+          return resolve();
+        } catch (err) {
+          if (err?.name === "AbortError") return resolve(); // user cancelled
+          return reject(err);
         }
       }
-      toast("Sharing isn't supported here — use Download instead.");
+      reject(new Error("Sharing isn't supported here — use Download instead."));
     }, "image/png");
   });
 }
