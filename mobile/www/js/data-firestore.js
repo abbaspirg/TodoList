@@ -129,6 +129,25 @@ export async function addStudent(festId, student) {
     createdAt: serverTimestamp(),
   });
 }
+/** Writes many students in one round trip — used by the sample-roster
+ * seeder, where 100 sequential writes would take an age on a phone.
+ * Firestore caps a batch at 500 operations, so this chunks. */
+export async function addStudentsBulk(festId, students) {
+  for (let i = 0; i < students.length; i += 400) {
+    const batch = writeBatch(db);
+    for (const student of students.slice(i, i + 400)) {
+      batch.set(doc(db, "fests", festId, "students", student.id), { ...student, createdAt: serverTimestamp() });
+    }
+    await batch.commit();
+  }
+}
+
+/** Deletes many students and their registrations/marks — the cascade
+ * deleteStudent does, batched. */
+export async function deleteStudentsBulk(festId, studentIds) {
+  for (const studentId of studentIds) await deleteStudent(festId, studentId);
+}
+
 export async function updateStudent(festId, student) {
   await updateDoc(doc(db, "fests", festId, "students", student.id), student);
 }

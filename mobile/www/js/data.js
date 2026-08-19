@@ -38,6 +38,8 @@ export const deleteCategory = (...args) => impl().deleteCategory(...args);
 export const watchStudents = (...args) => impl().watchStudents(...args);
 export const addStudent = (...args) => impl().addStudent(...args);
 export const updateStudent = (...args) => impl().updateStudent(...args);
+export const addStudentsBulk = (...args) => impl().addStudentsBulk(...args);
+export const deleteStudentsBulk = (...args) => impl().deleteStudentsBulk(...args);
 export const deleteStudent = (...args) => impl().deleteStudent(...args);
 export const uploadStudentPhoto = (...args) => impl().uploadStudentPhoto(...args);
 

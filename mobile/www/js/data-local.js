@@ -67,6 +67,12 @@ export function watchStudents(_festId, groupId, cb) {
 export async function addStudent(_festId, student) {
   upsert("students", { ...student, id: student.id || genId(), createdAt: new Date().toISOString() });
 }
+export async function addStudentsBulk(_festId, students) {
+  for (const student of students) await addStudent(_festId, student);
+}
+export async function deleteStudentsBulk(_festId, studentIds) {
+  for (const id of studentIds) await deleteStudent(_festId, id);
+}
 export async function updateStudent(_festId, student) {
   upsert("students", student);
 }
