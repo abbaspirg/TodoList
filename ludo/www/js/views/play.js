@@ -1,60 +1,140 @@
 import { el, toast } from "../util.js";
-import { seatColor } from "../colors.js";
+import { colorForSeat } from "../colors.js";
 import { legalMoves, seatProgress } from "../game.js";
 import { drawBoard, hitTest, getHitTargets } from "../render.js";
+import { animateMove, animateDie, diffBoards, cancelAnimation } from "../animate.js";
+import { sounds, isMuted, toggleMuted } from "../sound.js";
+import { EMOJI_TRAY, flyEmote } from "../emotes.js";
 import { isDark } from "../theme.js";
 
-const DIE_FACES = ["🎲", "⚀", "⚁", "⚂", "⚃", "⚄", "⚅"];
+export const DIE_FACES = ["🎲", "⚀", "⚁", "⚂", "⚃", "⚄", "⚅"];
 
-let lastDie = null;
 let tapHandler = null;
+// The board as it was last drawn. Comparing the incoming snapshot against
+// this is what tells us a token moved and needs walking, rather than
+// teleporting into place.
+let shownBoard = null;
+// Bumped every time a walk starts. A walk that finds the generation has
+// moved on was superseded by a newer snapshot and must not paint its own
+// (now stale) board over it.
+let generation = 0;
+let animating = false;
+// The most recent context handed to renderGame. A walk finishes some
+// hundreds of milliseconds after it started, by which time the room may
+// have moved on — repainting from the context the walk captured would put
+// stale controls over a fresh board, which deadlocked the game: the die
+// showed one turn and the board another, so nobody could act.
+let currentContext = null;
+
+export function resetPlayView() {
+  cancelAnimation();
+  shownBoard = null;
+  animating = false;
+  currentContext = null;
+  generation++;
+}
 
 /** Paints the whole game screen from the room document. Called on every
- * snapshot, so it must be cheap and idempotent — it redraws rather than
- * diffing, which at this size is far simpler and fast enough. */
-export function renderGame({ room, myUid, presence, voice, onRoll, onMove, onPlayAgain, onLeave, onToggleVoice }) {
+ * snapshot, so it must be idempotent — it redraws rather than diffing the
+ * DOM, which at this size is simpler and fast enough. */
+export function renderGame(context) {
+  currentContext = context;
+  const { room, myUid } = context;
   const game = room.game;
   const mySeat = room.seatByUid[myUid];
-  const isMyTurn = game.turn === mySeat && room.status === "playing";
-  const canRoll = isMyTurn && game.dice === null;
-  const movable = isMyTurn && game.dice !== null ? legalMoves(game) : [];
+  const canvas = document.getElementById("board");
 
+  const change = diffBoards(shownBoard, game);
+  const previousBoard = shownBoard;
+  // Recorded before the walk starts, so a snapshot arriving mid-walk is
+  // diffed against where the board is going, not where it came from.
+  shownBoard = game;
+
+  renderChrome(context, { mySeat, animating: Boolean(change?.moved) });
+
+  if (change?.moved) {
+    // Paint the pre-move board first — the walk starts from there.
+    drawFrame(canvas, previousBoard, context, mySeat);
+    playMove(canvas, game, change, context, mySeat);
+  } else {
+    drawFrame(canvas, game, context, mySeat);
+  }
+}
+
+/** Walks the piece, then plays whatever the move earned. */
+async function playMove(canvas, game, change, context, mySeat) {
+  const mine = ++generation;
+  animating = true;
+  const { moved } = change;
+
+  if (change.leftYard) sounds.release();
+
+  await animateMove(canvas, game, {
+    seat: moved.seat,
+    tokenIndex: moved.tokenIndex,
+    fromPos: moved.fromPos,
+    toPos: moved.toPos,
+    drawOptions: drawOptionsFor(game, context, mySeat),
+  });
+
+  // A newer move superseded this one while it was walking. The newer walk
+  // owns the screen now; painting this move's board would rewind it.
+  if (mine !== generation) return;
+
+  if (change.captured.length) sounds.capture();
+  if (change.reachedHome) sounds.home();
+  if (game.status === "finished") sounds.win();
+
+  animating = false;
+  settle(canvas);
+}
+
+/** Repaints board and controls from whatever the room looks like NOW, not
+ * from the state the finished walk was animating. */
+function settle(canvas) {
+  const context = currentContext;
+  if (!context) return;
+  const seat = context.room.seatByUid[context.myUid];
+  shownBoard = context.room.game;
+  drawFrame(canvas, context.room.game, context, seat);
+  renderChrome(context, { mySeat: seat, animating: false });
+}
+
+function drawOptionsFor(game, { room, myUid }, mySeat) {
+  const isMyTurn = game.turn === mySeat && room.status === "playing";
+  return {
+    isDark: isDark(),
+    selectable: isMyTurn && game.dice !== null ? legalMoves(game) : [],
+    mySeat,
+  };
+}
+
+function drawFrame(canvas, game, context, mySeat) {
+  drawBoard(canvas, game, drawOptionsFor(game, context, mySeat));
+
+  // Attached once; re-rendering swaps the handler rather than stacking
+  // listeners on the canvas.
+  if (!canvas.dataset.bound) {
+    canvas.dataset.bound = "1";
+    canvas.addEventListener("click", (event) => {
+      const rect = canvas.getBoundingClientRect();
+      const hit = hitTest(getHitTargets(), event.clientX - rect.left, event.clientY - rect.top);
+      if (hit) tapHandler?.(hit);
+    });
+  }
+}
+
+function renderChrome(context, { mySeat, animating: isWalking }) {
+  const { room, myUid, presence, voice, onRoll, onMove, onPlayAgain, onLeave, onToggleVoice, onThrowEmote } =
+    context;
+  const game = room.game;
+  const isMyTurn = game.turn === mySeat && room.status === "playing";
+  const canRoll = isMyTurn && game.dice === null && !isWalking;
+  const movable = isMyTurn && game.dice !== null ? legalMoves(game) : [];
   const nameFor = (seat) => room.players.find((p) => p.seat === seat)?.name || `Seat ${seat + 1}`;
 
-  // --- Status line ---------------------------------------------------
-  const statusHost = document.getElementById("gameStatus");
-  const turnColor = seatColor(game.turn);
-  statusHost.replaceChildren(
-    el("span", { class: "seat-dot", style: `--seat-color:${turnColor.hex}` }, String(game.turn + 1)),
-    el(
-      "span",
-      { class: "who" },
-      room.status === "finished"
-        ? "Game over"
-        : isMyTurn
-          ? game.dice === null
-            ? "Your turn — tap the die"
-            : movable.length
-              ? "Tap a token to move"
-              : "No move available…"
-          : `${nameFor(game.turn)}'s turn`,
-    ),
-    voice?.isActive?.()
-      ? el(
-          "button",
-          { class: "icon-btn", title: voice.isMuted() ? "Unmute" : "Mute", onclick: onToggleVoice },
-          voice.isMuted() ? "🔇" : "🎙",
-        )
-      : el("button", { class: "icon-btn", title: "Join voice", onclick: onToggleVoice }, "🎙"),
-  );
-
-  // --- Board ---------------------------------------------------------
-  const canvas = document.getElementById("board");
-  drawBoard(canvas, game, { isDark: isDark(), selectable: movable, mySeat });
-
-  // The click listener is attached once and reads the handler through a
-  // module-level slot, so re-rendering doesn't stack up listeners.
   tapHandler = (hit) => {
+    if (isWalking || animating) return;
     if (hit.seat !== mySeat) {
       toast(hit.seat === game.turn ? "That's not your token." : `That token belongs to ${nameFor(hit.seat)}.`);
       return;
@@ -65,42 +145,64 @@ export function renderGame({ room, myUid, presence, voice, onRoll, onMove, onPla
     onMove(hit.tokenIndex);
   };
 
-  if (!canvas.dataset.bound) {
-    canvas.dataset.bound = "1";
-    canvas.addEventListener("click", (event) => {
-      const rect = canvas.getBoundingClientRect();
-      // Read the targets at tap time, not render time — a deferred repaint
-      // may have replaced them since.
-      const hit = hitTest(getHitTargets(), event.clientX - rect.left, event.clientY - rect.top);
-      if (hit) tapHandler?.(hit);
-    });
-  }
+  // --- Status --------------------------------------------------------
+  const statusHost = document.getElementById("gameStatus");
+  const turnColor = colorForSeat(game, game.turn);
+  statusHost.replaceChildren(
+    el("span", { class: "seat-dot", style: `--seat-color:${turnColor.hex}` }, String(game.turn + 1)),
+    el(
+      "span",
+      { class: "who" },
+      room.status === "finished"
+        ? `🏆 ${nameFor(game.finished[0])} wins!`
+        : isMyTurn
+          ? game.dice === null
+            ? "Your turn — roll!"
+            : movable.length
+              ? "Tap a token to move"
+              : "No move available…"
+          : `${nameFor(game.turn)}'s turn`,
+    ),
+    el(
+      "button",
+      { class: "icon-btn", title: isMuted() ? "Sound off" : "Sound on", onclick: onToggleSound },
+      isMuted() ? "🔈" : "🔊",
+    ),
+    el(
+      "button",
+      {
+        class: `icon-btn${voice?.isActive?.() && !voice.isMuted() ? " on" : ""}`,
+        title: voice?.isActive?.() ? (voice.isMuted() ? "Unmute" : "Mute") : "Join voice",
+        onclick: onToggleVoice,
+      },
+      voice?.isActive?.() && voice.isMuted() ? "🔇" : "🎙",
+    ),
+  );
 
   // --- Controls ------------------------------------------------------
   const controls = document.getElementById("gameControls");
   const die = el(
     "button",
     {
-      class: `die${canRoll ? " rollable" : ""}${game.dice !== null && game.dice !== lastDie ? " rolling" : ""}`,
+      id: "die",
+      class: `die${canRoll ? " rollable" : ""}`,
       disabled: !canRoll || undefined,
-      title: canRoll ? "Roll" : "Not your turn",
+      title: canRoll ? "Roll the die" : "Not your turn",
       onclick: onRoll,
     },
-    // Always a die face: a placeholder dot while waiting for someone else
-    // read as a broken glyph rather than as "no roll yet".
     DIE_FACES[game.dice ?? 0],
   );
-  lastDie = game.dice;
 
   controls.replaceChildren(
     die,
     room.status === "finished"
-      ? el("button", { class: "btn", onclick: onPlayAgain }, "Play again")
+      ? el("button", { class: "btn glow", onclick: onPlayAgain }, "Play again")
       : el(
           "button",
-          { class: "btn secondary", disabled: !canRoll || undefined, onclick: onRoll },
-          canRoll ? "Roll the die" : isMyTurn ? "Move a token" : "Waiting…",
+          { class: `btn${canRoll ? " glow" : " secondary"}`, disabled: !canRoll || undefined, onclick: onRoll },
+          canRoll ? "ROLL" : isMyTurn ? "Move a token" : "Waiting…",
         ),
+    el("button", { class: "icon-btn", title: "Throw an emoji", onclick: () => toggleTray(onThrowEmote) }, "😀"),
     el("button", { class: "icon-btn", title: "Leave game", onclick: onLeave }, "✕"),
   );
 
@@ -110,10 +212,10 @@ export function renderGame({ room, myUid, presence, voice, onRoll, onMove, onPla
     ...[...room.players]
       .sort((a, b) => a.seat - b.seat)
       .map((player) => {
-        const color = seatColor(player.seat);
+        const color = colorForSeat(game, player.seat);
         const progress = seatProgress(game, player.seat);
         const rank = game.finished.indexOf(player.seat);
-        const speaking = presence.find((p) => p.uid === player.uid)?.voiceOn;
+        const onVoice = presence.find((p) => p.uid === player.uid)?.voiceOn;
         return el(
           "span",
           {
@@ -124,24 +226,77 @@ export function renderGame({ room, myUid, presence, voice, onRoll, onMove, onPla
             el("span", { class: "pip" }),
             player.name + (player.uid === myUid ? " (you)" : ""),
             rank >= 0
-              ? el("span", { class: "tag live" }, `#${rank + 1}`)
-              : el("span", { class: "tag" }, `${progress.home}/4 home`),
-            speaking ? el("span", { title: "on voice" }, "🎙") : null,
+              ? el("span", { class: "tag live" }, `${["🥇", "🥈", "🥉"][rank] || "#" + (rank + 1)}`)
+              : el("span", { class: "tag" }, `${progress.home}/4`),
+            onVoice ? el("span", { title: "on voice" }, "🎙") : null,
           ],
         );
       }),
   );
 
   // --- Move history --------------------------------------------------
-  const log = document.getElementById("moveLog");
-  log.replaceChildren(
-    ...[...game.log].reverse().map((entry) => el("li", {}, humanise(entry.message, nameFor))),
-  );
+  document
+    .getElementById("moveLog")
+    .replaceChildren(...[...game.log].reverse().map((entry) => el("li", {}, humanise(entry.message, nameFor))));
+}
 
-  if (room.status === "finished") {
-    const podium = game.finished.map((seat, i) => `${i + 1}. ${nameFor(seat)}`).join("   ");
-    statusHost.append(el("span", { class: "tag live" }, podium));
+/** The die is animated only when a NEW roll arrives, so a redraw for some
+ * other reason doesn't set it tumbling again. */
+let lastAnimatedDie = null;
+export function maybeAnimateDie(game) {
+  const die = document.getElementById("die");
+  if (!die || game.dice === null) {
+    lastAnimatedDie = null;
+    return;
   }
+  const key = `${game.turn}-${game.dice}-${game.log.length}`;
+  if (key === lastAnimatedDie) return;
+  lastAnimatedDie = key;
+  sounds.diceRoll();
+  animateDie(die, game.dice, DIE_FACES);
+}
+
+function onToggleSound() {
+  const muted = toggleMuted();
+  toast(muted ? "Sound off" : "Sound on");
+  if (!muted) sounds.step(0);
+  // Repaint the button's icon without a full re-render.
+  const button = document.querySelector('#gameStatus .icon-btn[title^="Sound"]');
+  if (button) {
+    button.textContent = muted ? "🔈" : "🔊";
+    button.title = muted ? "Sound off" : "Sound on";
+  }
+}
+
+function toggleTray(onThrowEmote) {
+  const existing = document.querySelector(".emote-tray");
+  if (existing) {
+    existing.remove();
+    return;
+  }
+  const tray = el(
+    "div",
+    { class: "emote-tray" },
+    EMOJI_TRAY.map((emoji) =>
+      el(
+        "button",
+        {
+          class: "emote-pick",
+          onclick: () => {
+            onThrowEmote(emoji);
+            tray.remove();
+          },
+        },
+        emoji,
+      ),
+    ),
+  );
+  document.getElementById("gameControls").after(tray);
+}
+
+export function showEmote(emoji, fromName) {
+  sounds.emote();
+  flyEmote(emoji, fromName);
 }
 
 /** The engine logs in terms of seat numbers, since it knows nothing about
@@ -152,6 +307,9 @@ function humanise(message, nameFor) {
 
 export function announceTurnChange(room, myUid, previousTurn) {
   const game = room.game;
-  if (!game || game.turn === previousTurn) return;
-  if (game.turn === room.seatByUid[myUid]) toast("Your turn");
+  if (!game || game.turn === previousTurn || previousTurn === null) return;
+  if (game.turn === room.seatByUid[myUid]) {
+    sounds.yourTurn();
+    toast("Your turn");
+  }
 }

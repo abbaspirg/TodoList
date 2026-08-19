@@ -17,7 +17,6 @@ import {
   nextActiveSeat,
   seatProgress,
   YARD,
-  HOME_LEN,
   MAX_SEATS,
   MIN_SEATS,
 } from "../www/js/game.js";
@@ -56,19 +55,72 @@ check("every supported player count produces a sane board", () => {
   for (let seats = MIN_SEATS; seats <= MAX_SEATS; seats++) {
     const c = boardConfig(seats);
     ok(c.seg >= 6, `${seats} players: segment ${c.seg} is too small`);
-    ok(c.trackLen === c.seg * seats, `${seats} players: track length mismatch`);
-    // Starts must be distinct, or two players would share a start square.
+    ok(c.trackLen >= seats * 6, `${seats} players: track ${c.trackLen} is too short for the arms`);
+    // Starts must be distinct and on the track, or two players would share
+    // a start square or step off the end of the board.
     const starts = new Set();
-    for (let s = 0; s < seats; s++) starts.add(startSquare(c, s));
+    for (let s = 0; s < seats; s++) {
+      const start = startSquare(c, s);
+      ok(start >= 0 && start < c.trackLen, `${seats} players: start ${start} is off the track`);
+      starts.add(start);
+    }
     eq(starts.size, seats, `${seats} players: distinct start squares`);
+  }
+});
+
+check("two, three and four players all use the classic 52-cell board", () => {
+  for (const seats of [2, 3, 4]) {
+    const c = boardConfig(seats);
+    eq(c.trackLen, 52, `${seats} players: track length`);
+    eq(c.seg, 13, `${seats} players: segment`);
+    ok(c.classic, `${seats} players should be flagged as a classic board`);
+    // Every start must land on a corner of the cross.
+    for (let s = 0; s < seats; s++) {
+      ok(startSquare(c, s) % 13 === 0, `${seats} players: seat ${s} is not on a corner`);
+    }
+  }
+});
+
+check("two players sit at opposite corners, as on a real board", () => {
+  const c = boardConfig(2);
+  eq([startSquare(c, 0), startSquare(c, 1)], [0, 26], "start squares");
+});
+
+check("five or more players fall back to the polygon board", () => {
+  for (let seats = 5; seats <= MAX_SEATS; seats++) {
+    const c = boardConfig(seats);
+    ok(!c.classic, `${seats} players should not be a classic board`);
+    eq(c.trackLen, c.seg * seats, `${seats} players: one arm each`);
+  }
+});
+
+check("no board runs far longer than the classic one", () => {
+  // The reason polygon arms are shorter than cross arms: eight players on
+  // 13-cell arms would be a 104-cell track and a game nobody finishes.
+  const classic = finishPos(boardConfig(4));
+  for (let seats = MIN_SEATS; seats <= MAX_SEATS; seats++) {
+    const steps = finishPos(boardConfig(seats));
+    ok(steps <= classic * 1.4, `${seats} players: ${steps} steps is too long (classic is ${classic})`);
+  }
+});
+
+check("the classic board carries all eight printed safe squares", () => {
+  // They hold whether two, three or four are playing — they are printed on
+  // the board, not derived from who turned up.
+  for (const seats of [2, 3, 4]) {
+    const safe = safeSquares(boardConfig(seats));
+    eq([...safe].sort((a, b) => a - b), [0, 8, 13, 21, 26, 34, 39, 47], `${seats} players`);
   }
 });
 
 check("seven players — the count actually asked for — is a legal board", () => {
   const c = boardConfig(7);
   eq(c.seats, 7, "seats");
-  eq(c.seg, 7, "segment");
-  eq(c.trackLen, 49, "track length");
+  eq(c.seg, 9, "cells per arm");
+  eq(c.trackLen, 63, "track length");
+  // 63 track cells plus a 3-cell home column and the centre: 66 steps from
+  // yard to home, against the classic board's 57. A comparable game.
+  eq(finishPos(c), 66, "steps from start to centre");
 });
 
 check("out-of-range player counts are rejected", () => {
@@ -83,7 +135,7 @@ check("out-of-range player counts are rejected", () => {
   }
 });
 
-check("each seat's ring positions wrap around to its own start", () => {
+check("each seat's track positions wrap around to its own start", () => {
   const g = createGame(7);
   for (let seat = 0; seat < 7; seat++) {
     eq(ringSquare(g, seat, 0), startSquare(g, seat), `seat ${seat} at pos 0`);
@@ -231,9 +283,36 @@ check("the centre needs an exact roll — an overshoot is not a legal move", () 
   eq(legalMoves({ ...g, dice: 2 }), [0], "the exact roll must be playable");
 });
 
-check("the home column is exactly HOME_LEN squares deep", () => {
-  const g = createGame(7);
-  eq(finishPos(g) - g.trackLen + 1, HOME_LEN, "home column depth");
+check("home column depth matches the board's lane length", () => {
+  // Both shapes derive every dimension from one number: the cells along an
+  // arm's lane. Six on the cross, four on the polygon.
+  eq(finishPos(createGame(4)) - 52 + 1, 6, "classic home depth");
+  const seven = createGame(7);
+  eq(finishPos(seven) - seven.trackLen + 1, 4, "polygon home depth");
+});
+
+check("a polygon arm is an outward lane, a tip and a returning lane", () => {
+  for (let seats = 5; seats <= MAX_SEATS; seats++) {
+    const c = boardConfig(seats);
+    eq(c.seg, 9, `${seats} players: cells per arm`);
+    // Each seat starts on its own arm, one cell in from the tip.
+    for (let s = 0; s < seats; s++) {
+      eq(Math.floor(startSquare(c, s) / c.seg), s, `${seats} players: seat ${s} is on its own arm`);
+      eq(startSquare(c, s) % c.seg, 6, `${seats} players: seat ${s} entry offset`);
+    }
+  }
+});
+
+check("a full lap lands on the cell just before your own start", () => {
+  // What makes the home column reachable: after trackLen-1 steps a token is
+  // one cell short of where it began, which is where it turns inward.
+  for (const seats of [2, 4, 5, 7, 8]) {
+    const c = boardConfig(seats);
+    for (let s = 0; s < seats; s++) {
+      const lap = ringSquare(c, s, c.trackLen - 1);
+      eq(lap, (startSquare(c, s) + c.trackLen - 1) % c.trackLen, `${seats}p seat ${s}`);
+    }
+  }
 });
 
 check("getting a token home earns another turn", () => {

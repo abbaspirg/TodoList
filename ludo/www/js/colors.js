@@ -17,3 +17,20 @@ export const SEAT_COLORS = [
 export function seatColor(seat) {
   return SEAT_COLORS[seat % SEAT_COLORS.length];
 }
+
+/** The four corner colours of a real Ludo board, in corner order:
+ * top-left, top-right, bottom-right, bottom-left. */
+export const CLASSIC_COLORS = [
+  { name: "Red", hex: "#e0393e", ink: "#ffffff" },
+  { name: "Green", hex: "#12996b", ink: "#ffffff" },
+  { name: "Yellow", hex: "#e8b422", ink: "#3a2c00" },
+  { name: "Blue", hex: "#2f6fed", ink: "#ffffff" },
+];
+
+/** A seat's colour. On the classic cross board it comes from the corner the
+ * seat sits in, so the colours are the ones printed on a real board; on the
+ * generated ring it is just the seat's own colour from the palette. */
+export function colorForSeat(config, seat) {
+  if (config?.classic) return CLASSIC_COLORS[config.starts[seat] / 13];
+  return seatColor(seat);
+}

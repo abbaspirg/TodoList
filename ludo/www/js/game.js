@@ -34,41 +34,105 @@ export const MAX_SEATS = 8;
  */
 export const YARD = -1;
 
+/** The classic board is 52 cells with four arms 13 apart. Two, three and
+ * four players all play on exactly that board — which is what lets them be
+ * drawn as the familiar cross. Only five or more need a generated ring.
+ *
+ * Which corners get used matters: with two players they sit OPPOSITE each
+ * other, as on a real board, rather than side by side. */
+export const CLASSIC_TRACK = 52;
+const CLASSIC_SEG = 13;
+const CLASSIC_CORNERS = { 2: [0, 2], 3: [0, 1, 2], 4: [0, 1, 2, 3] };
+
+// Both board shapes are built from the same unit: an arm (or sector) of
+// `lane` cells running outward, one cell across the tip, and `lane` cells
+// running back — plus a home column of `lane - 1` cells up the middle.
+//
+//   cells on the shared track per arm = 2 * lane + 1
+//   home positions (column + centre)  = lane
+//
+// The classic cross has six-cell lanes, which is where its 13-per-arm and
+// 52-cell track come from. The polygon boards for five or more players use
+// four-cell lanes, because seven arms of thirteen would be a 91-cell track
+// and a game that never ends. Four keeps every board between 48 and 75
+// steps from yard to centre, against the classic board's 57.
+export const CLASSIC_LANE = 6;
+export const POLYGON_LANE = 4;
+
+/** Cells along one lane of an arm — the number every other board dimension
+ * is derived from. */
+export function laneLength(config) {
+  return config.classic ? CLASSIC_LANE : POLYGON_LANE;
+}
+
 /** Board size for a given number of players.
  *
- * `seg` is the gap between one player's start square and the next player's.
- * Picking it as 52/seats keeps a game roughly the same length regardless of
- * how many are playing — and lands on exactly 13 for four players, which is
- * the classic board. Never below 6, or the starts crowd together and the
- * opening becomes a bloodbath. */
+ * Up to four players it is the classic board, unchanged. Beyond that the
+ * gap between starts is 52/seats (never below 6), which keeps a game about
+ * the same length however many are playing instead of letting an
+ * eight-player board run nearly twice as long. */
 export function boardConfig(seats) {
   if (!Number.isInteger(seats) || seats < MIN_SEATS || seats > MAX_SEATS) {
     throw new Error(`Ludo needs between ${MIN_SEATS} and ${MAX_SEATS} players.`);
   }
-  const seg = Math.max(6, Math.round(52 / seats));
-  return { seats, seg, trackLen: seats * seg, homeLen: HOME_LEN };
+  if (seats <= 4) {
+    return {
+      seats,
+      seg: CLASSIC_SEG,
+      trackLen: CLASSIC_TRACK,
+      homeLen: CLASSIC_LANE,
+      classic: true,
+      // Which of the four corners each seat occupies, so the renderer and
+      // the rules agree on where a seat starts.
+      starts: CLASSIC_CORNERS[seats].map((corner) => corner * CLASSIC_SEG),
+    };
+  }
+
+  // A polygon with one arm per player — the shape a real seven-player board
+  // uses. Each arm is laid out exactly like an arm of the cross: out along
+  // one lane, across the tip, back along the other, with the home column up
+  // the middle.
+  const seg = 2 * POLYGON_LANE + 1;
+  return {
+    seats,
+    seg,
+    trackLen: seats * seg,
+    homeLen: POLYGON_LANE,
+    classic: false,
+    // A seat starts on the second cell of its own arm's returning lane,
+    // which is the cell its yard opens onto — the same place a player
+    // starts on the classic board.
+    starts: Array.from({ length: seats }, (_, seat) => seat * seg + POLYGON_LANE + 2),
+  };
 }
 
 export function finishPos(config) {
   return config.trackLen + config.homeLen - 1;
 }
 
-/** Where a seat's own start square sits on the shared ring. */
+/** Where a seat's own start square sits on the shared track. */
 export function startSquare(config, seat) {
-  return seat * config.seg;
+  return config.starts[seat];
 }
 
-/** A relative position turned into a square on the shared ring, or null if
- * the token is in the yard or has left the ring for its home column. */
+/** A relative position turned into a square on the shared track, or null if
+ * the token is in the yard or has left the track for its home column. */
 export function ringSquare(config, seat, pos) {
   if (pos < 0 || pos >= config.trackLen) return null;
   return (startSquare(config, seat) + pos) % config.trackLen;
 }
 
-/** Squares where a token can't be captured: every player's start square,
- * plus one square midway along each segment — the same idea as the starred
- * squares on a classic board, spaced to suit however many arms there are. */
+/** The eight starred/coloured squares of a classic board: the four corner
+ * start cells, and the star eight steps on from each. Hard-coded rather
+ * than derived because these are the positions printed on a real board, and
+ * they hold whether two, three or four people are playing. */
+const CLASSIC_SAFE = [0, 8, 13, 21, 26, 34, 39, 47];
+
+/** Squares where a token can't be captured. */
 export function safeSquares(config) {
+  if (config.trackLen === CLASSIC_TRACK) return new Set(CLASSIC_SAFE);
+  // On a generated ring: every seat's start, plus one square midway along
+  // each segment — the same idea as the stars, spaced to suit the arms.
   const safe = new Set();
   for (let seat = 0; seat < config.seats; seat++) {
     safe.add(startSquare(config, seat));

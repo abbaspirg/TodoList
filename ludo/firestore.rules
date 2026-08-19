@@ -90,6 +90,16 @@ service cloud.firestore {
         allow read, delete: if isSignedIn() && resource.data.to == request.auth.uid;
         allow update: if false;
       }
+
+      // Thrown emoji. Everyone in the room sees them, but you can only
+      // throw in your own name and only clear up your own — so nobody can
+      // put words in another player's mouth or wipe the room's reactions.
+      match /emotes/{emoteId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn() && request.resource.data.from == request.auth.uid;
+        allow delete: if isSignedIn() && resource.data.from == request.auth.uid;
+        allow update: if false;
+      }
     }
   }
 }

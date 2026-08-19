@@ -7,8 +7,12 @@
   --primary: #12996b;
   --primary-dark: #0d7d57;
   --danger: #c0392b;
-  --radius: 14px;
+  --accent: #f0a500;
+  --radius: 16px;
   --shadow: 0 2px 10px rgba(20, 30, 25, 0.06);
+  /* The felt the board sits on. A game screen wants some depth behind the
+     board rather than the flat page colour a form would use. */
+  --table: radial-gradient(circle at 50% 18%, #1c6b8f 0%, #123a63 55%, #0d2444 100%);
 }
 
 /* Dark mode — js/theme.js sets data-theme on <html> when the user picks
@@ -24,9 +28,11 @@
     --primary-dark: #278f65;
     --danger: #e0584a;
     --shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+    --table: radial-gradient(circle at 50% 18%, #16394d 0%, #0e2338 55%, #070f1c 100%);
   }
 }
 :root[data-theme="dark"] {
+  --table: radial-gradient(circle at 50% 18%, #16394d 0%, #0e2338 55%, #070f1c 100%);
   --bg: #0e1512;
   --surface: #18211d;
   --text: #edf2ef;
@@ -183,11 +189,21 @@ select {
 }
 .tag.live { background: color-mix(in srgb, var(--primary) 18%, transparent); color: var(--primary-dark); border-color: transparent; }
 
-/* --- Board ------------------------------------------------------------- */
+/* --- Board -------------------------------------------------------------
+   The game screen gets its own treatment: the board sits on a dark "table"
+   so the bright board colours pop, and the controls read as game controls
+   rather than form buttons. */
+section[data-screen="game"] {
+  background: var(--table);
+  margin: -14px;
+  padding: 14px;
+  min-height: calc(100vh - 60px);
+}
+
 .board-wrap {
   width: 100%;
   aspect-ratio: 1 / 1;
-  max-height: 62vh;
+  max-height: 58vh;
   display: flex;
   justify-content: center;
   margin: 0 auto 12px;
@@ -196,48 +212,81 @@ select {
   width: 100%;
   height: 100%;
   border-radius: var(--radius);
-  box-shadow: var(--shadow);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45), 0 0 0 3px rgba(255, 255, 255, 0.12);
   cursor: pointer;
 }
 
 .game-status {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   min-height: 46px;
   margin-bottom: 10px;
-  font-weight: 600;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
 }
 .game-status .who { flex: 1; }
+.game-status .icon-btn {
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  backdrop-filter: blur(4px);
+}
+.game-status .icon-btn.on { background: var(--primary); }
 
-.game-controls { display: flex; gap: 8px; align-items: center; margin-bottom: 14px; }
-.game-controls .btn { flex: 1; }
+.game-controls { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
+.game-controls .btn { flex: 1; letter-spacing: 0.05em; }
+.game-controls .icon-btn {
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  font-size: 1.15rem;
+  padding: 12px 13px;
+}
 
 /* The die face doubles as the roll button, so the thing you tap and the
    thing you read are the same object. */
 .die {
-  width: 62px;
-  height: 62px;
-  border-radius: 14px;
-  border: 2px solid var(--border);
-  background: var(--surface);
-  color: var(--text);
-  font-size: 1.9rem;
-  font-weight: 700;
+  width: 66px;
+  height: 66px;
+  border-radius: 16px;
+  border: none;
+  background: linear-gradient(160deg, #ffffff 0%, #dfe6e3 100%);
+  color: #1c2521;
+  font-size: 2.1rem;
+  line-height: 1;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
   cursor: pointer;
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.28), 0 6px 14px rgba(0, 0, 0, 0.3);
 }
-.die.rollable { border-color: var(--primary); box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 22%, transparent); }
-.die.rolling { animation: shake 0.45s ease; }
-@keyframes shake {
-  0%, 100% { transform: rotate(0deg); }
-  25% { transform: rotate(-13deg) scale(1.06); }
-  75% { transform: rotate(13deg) scale(1.06); }
+.die:disabled { opacity: 0.55; box-shadow: 0 2px 0 rgba(0, 0, 0, 0.25); }
+.die.rollable {
+  animation: die-invite 1.4s ease-in-out infinite;
 }
-@media (prefers-reduced-motion: reduce) { .die.rolling { animation: none; } }
+.die.rolling { animation: die-tumble 0.28s linear infinite; }
+
+@keyframes die-invite {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-4px) scale(1.04); }
+}
+@keyframes die-tumble {
+  0% { transform: rotate(0deg) scale(1.05); }
+  25% { transform: rotate(-18deg) scale(1.12); }
+  50% { transform: rotate(6deg) scale(1.05); }
+  75% { transform: rotate(20deg) scale(1.12); }
+  100% { transform: rotate(0deg) scale(1.05); }
+}
+
+/* The primary action pulses so it is obvious across a room. */
+.btn.glow {
+  background: linear-gradient(160deg, #2fc98d 0%, #12996b 100%);
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.25), 0 0 18px rgba(47, 201, 141, 0.45);
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+.btn.glow:hover { background: linear-gradient(160deg, #35d998 0%, #0d7d57 100%); }
 
 .players-panel { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
 .player-chip {
@@ -247,15 +296,90 @@ select {
   padding: 5px 10px;
   border-radius: 999px;
   font-size: 0.78rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.92);
+  color: #1c2521;
+  border: 2px solid transparent;
 }
-.player-chip.is-turn { border-color: var(--seat-color); box-shadow: 0 0 0 2px color-mix(in srgb, var(--seat-color) 30%, transparent); }
-.player-chip .pip { width: 10px; height: 10px; border-radius: 50%; background: var(--seat-color); }
+.player-chip.is-turn {
+  border-color: var(--seat-color);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--seat-color) 65%, transparent);
+}
+.player-chip .pip { width: 11px; height: 11px; border-radius: 50%; background: var(--seat-color); }
+.player-chip .tag { background: rgba(0, 0, 0, 0.07); border-color: transparent; color: #4a564f; }
 
-.log-panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 14px; }
-.log-panel summary { cursor: pointer; font-size: 0.85rem; color: var(--text-muted); }
-.move-log { margin: 8px 0 0; padding-left: 18px; font-size: 0.8rem; color: var(--text-muted); max-height: 180px; overflow-y: auto; }
+/* --- Emoji throwing ---------------------------------------------------- */
+.emote-tray {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
+  padding: 10px;
+  margin-bottom: 12px;
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+  animation: tray-in 0.16s ease-out;
+}
+@keyframes tray-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+.emote-pick {
+  border: none;
+  background: transparent;
+  font-size: 1.6rem;
+  padding: 6px 0;
+  cursor: pointer;
+  border-radius: 10px;
+}
+.emote-pick:active { background: rgba(0, 0, 0, 0.08); transform: scale(1.2); }
+
+/* A thrown emoji sails across the screen and off the other side. */
+.emote-fly {
+  position: fixed;
+  left: 0;
+  z-index: 60;
+  font-size: 3.2rem;
+  pointer-events: none;
+  will-change: transform;
+  animation: emote-throw 2.2s cubic-bezier(0.25, 0.6, 0.4, 1) forwards;
+  text-shadow: 0 3px 10px rgba(0, 0, 0, 0.35);
+}
+.emote-who {
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  transform: translateX(-50%);
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.55);
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+@keyframes emote-throw {
+  0% { transform: translate(var(--from-x), 0) rotate(0turn) scale(0.6); opacity: 0; }
+  15% { opacity: 1; }
+  50% { transform: translate(50vw, var(--peak-y)) rotate(calc(var(--spin) * 0.5)) scale(1.25); opacity: 1; }
+  85% { opacity: 1; }
+  100% { transform: translate(var(--to-x), 0) rotate(var(--spin)) scale(0.7); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .die.rollable, .die.rolling { animation: none; }
+  .emote-fly { animation-duration: 0.9s; }
+}
+
+.log-panel {
+  background: rgba(255, 255, 255, 0.9);
+  border: none;
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  color: #1c2521;
+}
+.log-panel summary { cursor: pointer; font-size: 0.85rem; color: #55635c; font-weight: 600; }
+.move-log { margin: 8px 0 0; padding-left: 18px; font-size: 0.8rem; color: #55635c; max-height: 180px; overflow-y: auto; }
 
 .empty-state { text-align: center; color: var(--text-muted); padding: 26px 12px; }
 .footer-note { text-align: center; color: var(--text-muted); font-size: 0.75rem; margin-top: 14px; }

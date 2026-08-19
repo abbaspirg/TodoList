@@ -6,30 +6,62 @@ on a free Firebase project.
 
 ---
 
-## Seven players on a four-player board
+## Two boards, because seven players don't fit on one
 
-Ludo is a four-player game. The classic cross-shaped board has exactly four
-arms, and no amount of redrawing fits a seventh player onto it.
+Ludo is a four-player game. The classic cross board has exactly four arms,
+and no amount of redrawing fits a seventh player onto it. So there are two
+boards, picked automatically by player count:
 
-So the board here is **generated from the player count** rather than drawn:
-a ring of cells with one yard and one home column per player. Two players or
-eight, the same code lays it out, and the rules in `www/js/game.js` never
-need to know how many are playing.
+**Two to four players get the real cross board** — the one everyone knows.
+52 cells, starts 13 apart, eight printed safe squares, four corner yards,
+red/green/yellow/blue. Nothing about it is approximated. Two players sit at
+opposite corners, as on a real board; three leave the fourth corner greyed.
 
-At **four players the numbers come out exactly like the classic board** — a
-52-cell track with starts 13 apart. It simply renders as a ring instead of a
-cross. The track length is chosen as `52 / players` per segment (minimum 6),
-so a seven-player game is 49 cells and takes about as long as a normal
-four-player game rather than nearly twice as long.
+**Five to eight players get a polygon board** — the same shape a physical
+seven-player Ludo set uses: one triangular yard per player around the rim,
+three radial lanes per arm, coloured home spokes and a segmented centre.
 
-| Players | Track cells | Starts apart |
-|--------:|------------:|-------------:|
-| 2 | 52 | 26 |
-| 4 | 52 | 13 |
-| 5 | 50 | 10 |
-| 6 | 54 | 9 |
-| **7** | **49** | **7** |
-| 8 | 56 | 7 |
+Both boards are the same structure underneath. An arm is a lane of cells
+running outward, one cell across the tip, and a lane running back, with the
+home column up the middle:
+
+```
+   outward lane │ home column │ returning lane
+                └──── tip ────┘
+```
+
+The only difference is the lane length: six cells on the cross (giving 13
+per arm and the classic 52-cell track), four on the polygon. Four, because
+seven arms of thirteen would be a 91-cell track and a game nobody finishes.
+
+| Players | Board | Track cells | Steps to home |
+|--------:|:------|------------:|--------------:|
+| 2 | cross | 52 | 57 |
+| 3 | cross | 52 | 57 |
+| 4 | cross | 52 | 57 |
+| 5 | polygon | 45 | 48 |
+| 6 | polygon | 54 | 57 |
+| **7** | **polygon** | **63** | **66** |
+| 8 | polygon | 72 | 75 |
+
+Every board lands within 40% of the classic board's length, so a
+seven-player game takes about as long as a four-player one rather than
+twice as long.
+
+## Feel
+
+- **The die tumbles** through faces before settling, with a rattle
+  synthesised on the spot.
+- **Pieces walk**, one square at a time, with a tick per square that rises
+  in pitch — so a six *looks and sounds* like six steps rather than a
+  teleport. Captures, reaching home and winning each have their own sound.
+- **Emoji throws**: tap 😀, pick from twelve, and it sails across every
+  player's screen with your name on it.
+- Sound can be muted from the game screen; it is remembered per device.
+
+All sound is **synthesised with the Web Audio API** rather than loaded from
+files. No binary assets to ship, no licensing to sort out per effect, no
+slower first load — and tuning a sound means changing a number.
 
 ## Rules implemented
 
@@ -39,7 +71,9 @@ Standard Indian Ludo:
 - A **6**, a **capture**, or **getting a token home** each earn another roll.
 - **Three sixes in a row** forfeits the turn, and the third roll is not played.
 - Landing on an opponent sends it back to its yard — unless it is on a **★
-  square** or on any player's **start cell**, which are safe.
+  square** or on any player's **start cell**, which are safe. The cross
+  board uses the eight safe squares printed on a real board; the polygon
+  board puts a star midway along each arm.
 - The centre needs an **exact roll**; overshooting is not a legal move.
 - Players are **ranked in the order they finish**, so a seven-player game
   produces a full 1st-to-7th placing rather than one winner and six
@@ -131,7 +165,7 @@ would require the paid plan.
 `.github/workflows/pages.yml`. Open the link and use the browser's "Install
 this site as an app" to get a real window and an icon.
 
-**Android** — `.github/workflows/android-build.yml` builds a debug APK.
+**Android** — `.github/workflows/ludo-android.yml` builds a debug APK.
 Locally:
 
 ```bash
@@ -165,9 +199,13 @@ one module swapped, so it can never drift from the real page.
 
 ```
 ludo/
-  www/js/game.js       rules engine — pure, no DOM, no network
-  www/js/layout.js     board geometry for N players
-  www/js/render.js     canvas painter
+  www/js/game.js          rules engine — pure, no DOM, no network
+  www/js/board-classic.js geometry of the cross board (2-4 players)
+  www/js/layout-polygon.js geometry of the polygon board (5-8 players)
+  www/js/render.js        painter — picks a board and owns the tap targets
+  www/js/animate.js       dice tumble and piece-by-piece move animation
+  www/js/sound.js         synthesised sound effects
+  www/js/emotes.js        emoji throwing
   www/js/rooms.js      Firestore room sync
   www/js/voice.js      WebRTC audio mesh
   www/js/ice.js        STUN/TURN configuration

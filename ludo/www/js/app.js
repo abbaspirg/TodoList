@@ -22,7 +22,9 @@ import { renderSetup, renderNotConfigured } from "./views/setup.js";
 import { renderHome } from "./views/home.js";
 import { renderLobby } from "./views/lobby.js";
 import { renderSettings } from "./views/settings.js";
-import { renderGame, announceTurnChange } from "./views/play.js";
+import { renderGame, announceTurnChange, maybeAnimateDie, resetPlayView, showEmote } from "./views/play.js";
+import { throwEmote, watchEmotes } from "./emotes.js";
+import { sounds } from "./sound.js";
 
 let room = null;
 let roomCode = null;
@@ -30,6 +32,8 @@ let presence = [];
 let voice = null;
 let unsubRoom = null;
 let unsubPresence = null;
+let unsubEmotes = null;
+let knownPlayerCount = 0;
 let previousTurn = null;
 let screen = "loading";
 
@@ -64,6 +68,8 @@ async function handleJoin({ code, name }) {
 async function enterRoom(code, name) {
   roomCode = code;
   previousTurn = null;
+  knownPlayerCount = 0;
+  resetPlayView();
   await setPresence(code, { name, voiceOn: false }).catch(() => {});
 
   unsubPresence?.();
@@ -74,6 +80,14 @@ async function enterRoom(code, name) {
     // and it would leave an unanswered offer sitting in Firestore.
     voice?.sync(voicePeerUids());
     rerender();
+  });
+
+  unsubEmotes?.();
+  unsubEmotes = watchEmotes(code, (emote) => {
+    // Your own throw is shown immediately on tap, so don't show it twice
+    // when it comes back around through Firestore.
+    if (emote.from === currentUid()) return;
+    showEmote(emote.emoji, emote.fromName);
   });
 
   unsubRoom?.();
@@ -102,7 +116,9 @@ async function enterRoom(code, name) {
 function exitRoom() {
   unsubRoom?.();
   unsubPresence?.();
-  unsubRoom = unsubPresence = null;
+  unsubEmotes?.();
+  unsubRoom = unsubPresence = unsubEmotes = null;
+  resetPlayView();
   voice?.leave();
   voice = null;
   room = null;
@@ -167,6 +183,10 @@ function rerender() {
   const shared = { room, myUid, presence, voice, onToggleVoice: handleToggleVoice, onLeave: handleLeave };
 
   if (room.status === "lobby") {
+    // A small chime when somebody new arrives, so the host doesn't have to
+    // watch the list to know the room is filling up.
+    if (room.players.length > knownPlayerCount && knownPlayerCount > 0) sounds.join();
+    knownPlayerCount = room.players.length;
     show("lobby");
     renderLobby({ ...shared, onStart: handleStart });
     return;
@@ -181,7 +201,9 @@ function rerender() {
     onRoll: handleRoll,
     onMove: handleMove,
     onPlayAgain: handlePlayAgain,
+    onThrowEmote: handleThrowEmote,
   });
+  maybeAnimateDie(room.game);
   announceTurnChange(room, myUid, previousTurn);
   previousTurn = room.game?.turn ?? null;
 }
@@ -207,6 +229,16 @@ async function handleMove(tokenIndex) {
     await moveToken(roomCode, tokenIndex);
   } catch (err) {
     toast(err?.message || "Couldn't make that move.");
+  }
+}
+
+async function handleThrowEmote(emoji) {
+  // Shown locally first so it feels instant, then broadcast.
+  showEmote(emoji, null);
+  try {
+    await throwEmote(roomCode, emoji, nameOfMe());
+  } catch {
+    // A failed throw is not worth interrupting a game over.
   }
 }
 
