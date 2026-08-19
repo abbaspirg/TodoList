@@ -19,6 +19,7 @@ function seedDefaults() {
     registrations: [],
     scores: [],
     results: [],
+    attendance: [],
     settings: { madrasaName: "" },
   };
 }

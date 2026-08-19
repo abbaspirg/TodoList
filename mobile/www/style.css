@@ -209,6 +209,15 @@ input[type="color"] {
 .btn.secondary.active { background: var(--primary); color: #fff; border-color: var(--primary); }
 .btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
 
+/* Three of these sit on every attendance row, so they have to stay narrow
+   enough not to push the student's name off a phone screen. */
+.attendance-btn {
+  min-width: 34px;
+  padding: 8px 0;
+  text-align: center;
+  font-size: 0.8rem;
+}
+
 .fab {
   position: fixed;
   right: calc(18px + env(safe-area-inset-right, 0px));

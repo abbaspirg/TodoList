@@ -70,3 +70,7 @@ export const unpublishResult = (...args) => impl().unpublishResult(...args);
 export const watchItemScores = (...args) => impl().watchItemScores(...args);
 export const overrideScore = (...args) => impl().overrideScore(...args);
 export const recomputeItemResult = (...args) => impl().recomputeItemResult(...args);
+
+export const watchAttendance = (...args) => impl().watchAttendance(...args);
+export const setAttendance = (...args) => impl().setAttendance(...args);
+export const setAttendanceBulk = (...args) => impl().setAttendanceBulk(...args);

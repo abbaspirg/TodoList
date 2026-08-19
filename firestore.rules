@@ -126,6 +126,14 @@ service cloud.firestore {
         allow delete: if isAdmin();
       }
 
+      // Daily attendance, one document per student per day. Not public:
+      // it is a register of named minors and who was missing on a given
+      // day, which is nobody's business but the madrasa's.
+      match /attendance/{recordId} {
+        allow read: if isAdmin() || isJudge();
+        allow write: if isAdmin();
+      }
+
       match /posters/{posterId} {
         allow read: if true;
         allow write: if isAdmin();

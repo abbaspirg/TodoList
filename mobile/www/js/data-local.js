@@ -279,3 +279,14 @@ function recomputeResult(itemId, { onlyIfComplete = false } = {}) {
 function maybeFinalizeItem(itemId) {
   return recomputeResult(itemId, { onlyIfComplete: true });
 }
+
+// --- Attendance (see data-firestore.js for the record shape) ---------------
+export function watchAttendance(_festId, date, cb) {
+  return subscribe("attendance", (list) => cb(list.filter((a) => a.date === date)));
+}
+export async function setAttendance(_festId, record) {
+  upsert("attendance", { ...record, id: `${record.date}_${record.studentId}`, markedAt: new Date().toISOString() });
+}
+export async function setAttendanceBulk(_festId, records) {
+  for (const record of records) await setAttendance(_festId, record);
+}

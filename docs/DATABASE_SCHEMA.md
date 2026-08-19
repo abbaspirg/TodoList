@@ -170,6 +170,13 @@ erDiagram
   two devices finishing at once — double-counted. Deriving is O(results),
   trivial at fest scale, and cannot drift. The SQL DDL below keeps the table
   for a hypothetical SQL backend, where a trigger could maintain it safely.
+- **`ATTENDANCE`** — one document per student per day, id
+  `{date}_{studentId}`, so re-marking overwrites rather than accumulating.
+  `date` is a local `YYYY-MM-DD` string, not a timestamp: attendance is a
+  calendar fact, and a timestamp files an evening mark under the previous
+  day for anyone west of UTC. `className` is denormalized onto the record
+  because it is the axis attendance is taken and read along — deriving it
+  from the student would rewrite history when a student changes class.
 - **Points are rank points + grade points, additive** — the common
   Kalolsavam-style fest convention. Rank points come from a rank → points
   table (1st = 5, 2nd = 3, 3rd = 1, else a flat participation point,
@@ -195,6 +202,7 @@ fests/{festId}                  # madrasaName lives on this doc
   results/{itemId}              # one result doc per item, doc ID == itemId
   posters/{posterId}
   judges/{judgeId}              # assignedItemIds: [itemId, ...] — what the rules check
+  attendance/{date_studentId}   # daily register, one doc per student per day
 
 roles/{uid}                     # { role: "admin" } | { role: "judge", judgeId }
                                 # NOT writable by the app — seeded by hand in the

@@ -477,3 +477,41 @@ export async function overrideScore(festId, scoreId, totalMarks, itemId) {
   await updateDoc(doc(db, "scores", scoreId), { totalMarks, editedByAdminAt: serverTimestamp() });
   await recomputeResult(festId, itemId);
 }
+
+// --- Attendance ------------------------------------------------------------
+// One document per student per day, id `${date}_${studentId}`, so marking
+// the same student twice overwrites rather than accumulating. `date` is a
+// local YYYY-MM-DD string, not a timestamp: attendance is a calendar fact,
+// and a timestamp would put a late-evening mark on the previous day for
+// anyone west of UTC.
+//
+// className is denormalized onto the record because it is the axis
+// attendance is taken and read along. Deriving it from the student instead
+// would silently rewrite history the moment a student moves up a class.
+
+export function watchAttendance(festId, date, cb) {
+  return listen(
+    query(collection(db, "fests", festId, "attendance"), where("date", "==", date)),
+    (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+  );
+}
+
+export async function setAttendance(festId, record) {
+  const id = `${record.date}_${record.studentId}`;
+  await setDoc(doc(db, "fests", festId, "attendance", id), {
+    ...record,
+    id,
+    markedAt: serverTimestamp(),
+  });
+}
+
+/** Marks a whole class in one write — the "everyone is here" case, which
+ * is the common one and would otherwise be one round trip per student. */
+export async function setAttendanceBulk(festId, records) {
+  const batch = writeBatch(db);
+  for (const record of records) {
+    const id = `${record.date}_${record.studentId}`;
+    batch.set(doc(db, "fests", festId, "attendance", id), { ...record, id, markedAt: serverTimestamp() });
+  }
+  await batch.commit();
+}
