@@ -1,7 +1,7 @@
 // Dispatches to js/auth-firebase.js or js/auth-local.js depending on
 // js/firebase.js isLocalMode() — mirrors the js/data.js dispatch. Views
 // only ever import this file.
-import { isLocalMode } from "./firebase.js";
+import { isLocalMode, createAuthUserWithoutSignIn } from "./firebase.js";
 import * as fb from "./auth-firebase.js";
 import {
   watchAuthStateLocal,
@@ -40,6 +40,14 @@ export function currentUserId() {
 
 export async function signIn(email, password) {
   return fb.signIn(email, password);
+}
+
+/** Admin action: creates a judge's sign-in account and returns its uid,
+ * without signing the admin out. No-op in Local Test Mode, which has no
+ * accounts. See js/firebase.js createAuthUserWithoutSignIn. */
+export async function createJudgeAccount(email, password) {
+  if (isLocalMode()) return null;
+  return createAuthUserWithoutSignIn(email, password);
 }
 
 export async function signOut() {

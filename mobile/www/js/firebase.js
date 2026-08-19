@@ -115,6 +115,31 @@ async function init() {
   }
 }
 
+/** Creates a Firebase Auth account without disturbing the caller's session.
+ *
+ * `createUserWithEmailAndPassword` signs the *new* user in on whichever app
+ * instance it's called against — so calling it on the main app would kick
+ * the admin out and leave them signed in as the judge they just created.
+ * Doing it on a throwaway secondary app instance is the standard way round
+ * that when there's no server to call. Returns the new user's uid.
+ */
+export async function createAuthUserWithoutSignIn(email, password) {
+  const [appMod, authMod] = await Promise.all([
+    import(`${CDN}/firebase-app.js`),
+    import(`${CDN}/firebase-auth.js`),
+  ]);
+  const secondary = appMod.initializeApp(getFirebaseConfig(), `secondary-${Date.now()}`);
+  try {
+    const cred = await authMod.createUserWithEmailAndPassword(authMod.getAuth(secondary), email, password);
+    return cred.user.uid;
+  } finally {
+    // Signing the secondary instance out and deleting it keeps the new
+    // account's session from lingering anywhere.
+    await authMod.signOut(authMod.getAuth(secondary)).catch(() => {});
+    await appMod.deleteApp(secondary).catch(() => {});
+  }
+}
+
 const ready = init();
 
 // Views/data.js await this before touching any Firestore call, so nothing

@@ -48,10 +48,18 @@ export function watchGroupTotals(festId, cb) {
   const emit = () => {
     if (results && groups) cb(computeGroupTotals(results, groups));
   };
-  const unsubResults = onSnapshot(collection(db, "fests", festId, "results"), (snap) => {
-    results = snap.docs.map((d) => d.data());
-    emit();
-  });
+  // Published results only, for two reasons: standings shouldn't reveal an
+  // item's outcome before it's announced, and the public leaderboard is
+  // read by signed-out guests, whose rules only permit published documents
+  // — an unfiltered query here is rejected outright rather than filtered,
+  // so the whole screen would fail for them.
+  const unsubResults = onSnapshot(
+    query(collection(db, "fests", festId, "results"), where("published", "==", true)),
+    (snap) => {
+      results = snap.docs.map((d) => d.data());
+      emit();
+    },
+  );
   const unsubGroups = onSnapshot(collection(db, "fests", festId, "groups"), (snap) => {
     groups = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     emit();
@@ -163,6 +171,14 @@ export function watchJudges(festId, cb) {
 export async function addJudge(festId, judge) {
   const id = judge.id || genId();
   await setDoc(doc(db, "fests", festId, "judges", id), { ...judge, id, assignedItemIds: [] });
+}
+
+/** Writes the `roles/{uid}` document that tells the security rules (and the
+ * app) what this account may do. Admin-only, enforced by firestore.rules.
+ * The very first admin's document still has to be created by hand in the
+ * Firebase console — nothing can grant the first role but the console. */
+export async function setUserRole(uid, roleData) {
+  await setDoc(doc(db, "roles", uid), roleData);
 }
 /** Admin-only (enforced by firestore.rules). Writes the assignment to the
  * judge document and mirrors it onto each item's assignedJudgeIds.

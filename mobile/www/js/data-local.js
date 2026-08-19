@@ -23,9 +23,12 @@ export function watchGroups(_festId, cb) {
   return subscribe("groups", cb);
 }
 // Derived from results rather than read from a stored running tally — see
-// js/scoring.js computeGroupTotals for why.
+// js/scoring.js computeGroupTotals for why. Published results only, so
+// standings don't reveal an item's outcome before it's announced (and to
+// match the Firestore backend, where guests may only read published ones).
 export function watchGroupTotals(_festId, cb) {
-  const emit = () => cb(computeGroupTotals(getAll("results"), getAll("groups")));
+  const emit = () =>
+    cb(computeGroupTotals(getAll("results").filter((r) => r.published), getAll("groups")));
   const unsubResults = subscribe("results", emit);
   const unsubGroups = subscribe("groups", emit);
   return () => {
@@ -113,6 +116,9 @@ export function watchJudges(_festId, cb) {
 export async function addJudge(_festId, judge) {
   upsert("judges", { ...judge, id: judge.id || genId(), assignedItemIds: [] });
 }
+/** No-op locally: Local Test Mode has no accounts — a judge "signs in" by
+ * picking their name from the list on the login screen (js/auth-local.js). */
+export async function setUserRole() {}
 export async function assignJudgeToItems(_festId, judgeId, itemIds) {
   // No Cloud Function / custom claims needed locally — the judge doc's
   // assignedItemIds *is* the authorization check in Local Test Mode (see

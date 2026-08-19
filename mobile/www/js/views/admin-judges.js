@@ -1,6 +1,20 @@
 import { el, mount, genId, toast } from "../util.js";
-import { watchJudges, watchItems, addJudge, assignJudgeToItems } from "../data.js";
+import { watchJudges, watchItems, addJudge, assignJudgeToItems, setUserRole } from "../data.js";
 import { FEST_ID } from "../app-config.js";
+import { isLocalMode } from "../firebase.js";
+import { createJudgeAccount } from "../auth.js";
+
+function friendlyAuthError(err) {
+  const code = err?.code || "";
+  if (code.includes("email-already-in-use")) return "That email already has an account.";
+  if (code.includes("invalid-email")) return "That email address doesn't look right.";
+  if (code.includes("weak-password")) return "Password must be at least 6 characters.";
+  if (code.includes("operation-not-allowed")) {
+    return "Enable Email/Password sign-in in the Firebase console first.";
+  }
+  if (code.includes("permission-denied")) return "Only an admin can add judges.";
+  return err?.message || "Couldn't add that judge — please try again.";
+}
 
 export async function renderAdminJudges() {
   let items = [];
@@ -17,8 +31,11 @@ export async function renderAdminJudges() {
   );
 
   function openForm() {
-    const nameInput = el("input", { type: "text" });
-    const emailInput = el("input", { type: "email" });
+    const nameInput = el("input", { type: "text", required: true });
+    const emailInput = el("input", { type: "email", required: !isLocalMode() || undefined });
+    const passwordInput = el("input", { type: "text", minlength: "6", placeholder: "at least 6 characters" });
+    const saveBtn = el("button", { class: "btn", type: "submit" }, "Save");
+
     formHost.replaceChildren(
       el(
         "form",
@@ -26,23 +43,57 @@ export async function renderAdminJudges() {
           class: "card",
           onsubmit: async (e) => {
             e.preventDefault();
-            if (!nameInput.value.trim()) return;
-            await addJudge(FEST_ID, {
-              id: genId(),
-              festId: FEST_ID,
-              name: nameInput.value.trim(),
-              email: emailInput.value.trim(),
-            });
-            toast("Judge added");
-            formHost.replaceChildren();
+            const name = nameInput.value.trim();
+            const email = emailInput.value.trim();
+            const password = passwordInput.value;
+            if (!name) return;
+
+            saveBtn.disabled = true;
+            saveBtn.textContent = "Saving…";
+            try {
+              const judgeId = genId();
+              // In Local Test Mode there are no accounts — a judge picks
+              // their name on the login screen — so the sign-in account is
+              // only created against a real Firebase project.
+              let authUid = null;
+              if (!isLocalMode()) {
+                if (!email || password.length < 6) {
+                  throw new Error("A judge needs an email and a password of at least 6 characters to sign in.");
+                }
+                authUid = await createJudgeAccount(email, password);
+                // Grants the account its role. Written after the account
+                // exists, before the judge doc, so a judge record never
+                // exists that can't be signed into.
+                await setUserRole(authUid, { role: "judge", judgeId });
+              }
+              await addJudge(FEST_ID, { id: judgeId, festId: FEST_ID, name, email, authUid });
+              toast(isLocalMode() ? "Judge added" : `${name} can now sign in with ${email}`);
+              formHost.replaceChildren();
+            } catch (err) {
+              toast(friendlyAuthError(err));
+            } finally {
+              saveBtn.disabled = false;
+              saveBtn.textContent = "Save";
+            }
           },
         },
         [
           el("h2", { style: "margin-top:0" }, "Add Judge"),
           el("div", { class: "field" }, [el("label", {}, "Name"), nameInput]),
           el("div", { class: "field" }, [el("label", {}, "Email"), emailInput]),
+          !isLocalMode()
+            ? el("div", { class: "field" }, [el("label", {}, "Password"), passwordInput])
+            : null,
+          !isLocalMode()
+            ? el(
+                "p",
+                { class: "subtitle" },
+                "Creates their sign-in account. Give them this email and password — they enter it " +
+                  "on their own phone after installing the app.",
+              )
+            : null,
           el("div", { class: "btn-row" }, [
-            el("button", { class: "btn", type: "submit" }, "Save"),
+            saveBtn,
             el("button", { class: "btn secondary", type: "button", onclick: () => formHost.replaceChildren() }, "Cancel"),
           ]),
         ],
@@ -69,9 +120,10 @@ export async function renderAdminJudges() {
                 onchange: (e) => {
                   const updated = new Set(assigned);
                   e.target.checked ? updated.add(item.id) : updated.delete(item.id);
-                  assignJudgeToItems(FEST_ID, judge.id, [...updated]).catch(() =>
-                    toast("Couldn't update assignment — is Cloud Functions deployed?"),
-                  );
+                  assignJudgeToItems(FEST_ID, judge.id, [...updated]).catch((err) => {
+                    e.target.checked = !e.target.checked; // revert the box; the write didn't land
+                    toast(friendlyAuthError(err));
+                  });
                 },
               }),
               item.name,

@@ -56,10 +56,22 @@ service cloud.firestore {
         && itemId in get(/databases/$(database)/documents/fests/$(festId)/judges/$(myJudgeId())).data.assignedItemIds;
     }
 
-    // Set once by hand in the Firebase console; never writable from the app.
+    // An admin may grant roles — that's how "Add Judge" gives a new account
+    // its judge role without a server. The FIRST admin still has to be
+    // created by hand in the Firebase console: nothing can grant the first
+    // role but the console, which is what stops a stranger bootstrapping
+    // themselves into one.
+    //
+    // Note this does mean an admin can create another admin. Admins are the
+    // institution's own staff and already have full write access to every
+    // collection, so this grants no authority they didn't already have.
     match /roles/{uid} {
       allow read: if isSignedIn() && request.auth.uid == uid;
-      allow write: if false;
+      allow write: if isAdmin()
+        && request.resource.data.role in ['admin', 'judge']
+        // A judge role must name the judges/ record it acts as, or the
+        // scores rules below have nothing to check an assignment against.
+        && (request.resource.data.role == 'admin' || request.resource.data.judgeId is string);
     }
 
     match /fests/{festId} {
