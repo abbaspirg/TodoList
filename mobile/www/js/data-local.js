@@ -284,6 +284,9 @@ function maybeFinalizeItem(itemId) {
 export function watchAttendance(_festId, date, cb) {
   return subscribe("attendance", (list) => cb(list.filter((a) => a.date === date)));
 }
+export function watchAllAttendance(_festId, cb) {
+  return subscribe("attendance", cb);
+}
 export async function setAttendance(_festId, record) {
   upsert("attendance", { ...record, id: `${record.date}_${record.studentId}`, markedAt: new Date().toISOString() });
 }

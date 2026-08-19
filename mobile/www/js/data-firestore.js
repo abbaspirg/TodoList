@@ -496,6 +496,16 @@ export function watchAttendance(festId, date, cb) {
   );
 }
 
+/** Every attendance record for the fest — what the report reads. The rule
+ * on this collection is admin/judge with no per-document condition, so an
+ * unfiltered collection query is allowed; a rule keyed on document fields
+ * would need the query to mirror it. */
+export function watchAllAttendance(festId, cb) {
+  return listen(collection(db, "fests", festId, "attendance"), (snap) =>
+    cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+  );
+}
+
 export async function setAttendance(festId, record) {
   const id = `${record.date}_${record.studentId}`;
   await setDoc(doc(db, "fests", festId, "attendance", id), {

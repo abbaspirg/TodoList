@@ -1,6 +1,7 @@
 import { el, mount, toast } from "../util.js";
 import { watchStudents, watchGroups, watchAttendance, setAttendance, setAttendanceBulk } from "../data.js";
 import { FEST_ID } from "../app-config.js";
+import { navigate } from "../router.js";
 
 const STATUSES = [
   { key: "present", label: "P", title: "Present" },
@@ -42,7 +43,10 @@ export async function renderAdminAttendance() {
 
   mount(
     el("div", {}, [
-      el("h1", { class: "page-title" }, "Attendance"),
+      el("div", { class: "btn-row", style: "justify-content:space-between;align-items:center" }, [
+        el("h1", { class: "page-title" }, "Attendance"),
+        el("button", { class: "btn secondary", onclick: () => navigate("/admin/attendance/report") }, "Report"),
+      ]),
       el("div", { class: "card" }, [
         el("div", { class: "field" }, [el("label", {}, "Date"), dateInput]),
         el("div", { class: "btn-row", style: "margin-bottom:12px" }, [
