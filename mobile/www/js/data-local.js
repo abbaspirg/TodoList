@@ -204,6 +204,22 @@ export async function finalizePendingItems(_festId) {
   return finalized;
 }
 
+export async function unpublishResult(_festId, itemId) {
+  upsert("results", { id: itemId, itemId, published: false });
+}
+
+// --- Admin overrides (see data-firestore.js for the rationale) --------------
+export function watchItemScores(itemId, cb) {
+  return subscribe("scores", (list) => cb(list.filter((sc) => sc.itemId === itemId)));
+}
+export async function overrideScore(_festId, scoreId, totalMarks, itemId) {
+  upsert("scores", { id: scoreId, totalMarks, editedByAdminAt: new Date().toISOString() });
+  recomputeResult(itemId);
+}
+export async function recomputeItemResult(_festId, itemId) {
+  return recomputeResult(itemId);
+}
+
 export async function publishResult(_festId, itemId) {
   // local-store's upsert() matches existing docs by `id`, not `itemId` —
   // maybeFinalizeItem() below sets both to the same value, so this must
@@ -215,31 +231,38 @@ export async function publishResult(_festId, itemId) {
 // --- Result computation -----------------------------------------------------
 // Ranking/grading itself lives in js/scoring.js, shared with the Firestore
 // backend; this just gathers the inputs from the local store.
-function maybeFinalizeItem(itemId) {
+/** Local mirror of data-firestore.js recomputeResult — same semantics, so
+ * Local Test Mode behaves like the real thing. See there for why
+ * `onlyIfComplete` exists. Group totals are derived on read
+ * (watchGroupTotals), so there is no running tally to adjust here. */
+function recomputeResult(itemId, { onlyIfComplete = false } = {}) {
   const item = get("items", itemId);
   if (!item) return false;
   const assignedJudgeIds = item.assignedJudgeIds || [];
-  if (assignedJudgeIds.length === 0) return false;
 
   const registrations = getAll("registrations").filter(
     (r) => r.itemId === itemId && r.status !== "withdrawn",
   );
-  if (registrations.length === 0) return false;
-
   const scoresByReg = new Map();
-  for (const s of getAll("scores").filter((s) => s.itemId === itemId)) {
-    const list = scoresByReg.get(s.registrationId) || [];
-    list.push(s.totalMarks);
-    scoresByReg.set(s.registrationId, list);
+  for (const sc of getAll("scores").filter((sc) => sc.itemId === itemId)) {
+    const list = scoresByReg.get(sc.registrationId) || [];
+    list.push(sc.totalMarks);
+    scoresByReg.set(sc.registrationId, list);
   }
 
-  if (!isFullyScored(registrations, scoresByReg, assignedJudgeIds.length)) return false;
+  const complete =
+    assignedJudgeIds.length > 0 &&
+    registrations.length > 0 &&
+    isFullyScored(registrations, scoresByReg, assignedJudgeIds.length);
 
-  const maxScore = item.maxScore || 10;
-  const ranked = computeRankings(registrations, scoresByReg, maxScore);
+  if (!complete) {
+    if (onlyIfComplete) return false;
+    if (get("results", itemId)) remove("results", itemId);
+    if (item.status === "completed") upsert("items", { id: itemId, status: "ongoing" });
+    return false;
+  }
 
-  // Publishing state must survive a recompute (a judge resubmitting after
-  // an admin already published shouldn't silently unpublish the result).
+  const ranked = computeRankings(registrations, scoresByReg, item.maxScore || 10);
   const existing = get("results", itemId);
   upsert("results", {
     itemId,
@@ -251,6 +274,8 @@ function maybeFinalizeItem(itemId) {
   });
   upsert("items", { id: itemId, status: "completed" });
   return true;
-  // Group totals are derived on read (watchGroupTotals), so there's
-  // nothing to increment here.
+}
+
+function maybeFinalizeItem(itemId) {
+  return recomputeResult(itemId, { onlyIfComplete: true });
 }

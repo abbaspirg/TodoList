@@ -354,46 +354,83 @@ export async function finalizePendingItems(festId) {
  * "Why no Cloud Functions". Recomputation is naturally idempotent: the
  * result document is derived wholly from scores, so two devices finishing
  * at once write the same content. */
-async function maybeFinalizeItem(festId, itemId) {
+/** Recomputes an item's result from its current registrations and marks.
+ *
+ * `onlyIfComplete` is the difference between a judge submitting and an
+ * admin editing. A judge's submission must never tear anything down when
+ * the item isn't finished yet, so it passes true and this simply does
+ * nothing. An admin editing data passes false, which also handles the
+ * reverse direction: if their change means the item is no longer fully
+ * scored — a participant added to a finished item, say — the stale result
+ * is deleted and the item reopens for scoring, rather than leaving a
+ * result on record that no longer matches the marks behind it.
+ *
+ * Returns true only when a result was written. */
+async function recomputeResult(festId, itemId, { onlyIfComplete = false } = {}) {
   const itemSnap = await getDoc(doc(db, "fests", festId, "items", itemId));
   if (!itemSnap.exists()) return false;
   const item = itemSnap.data();
   const assignedJudgeIds = item.assignedJudgeIds || [];
-  if (assignedJudgeIds.length === 0) return false;
 
   const [regsSnap, scoresSnap] = await Promise.all([
     getDocs(query(collection(db, "registrations"), where("itemId", "==", itemId))),
     getDocs(query(collection(db, "scores"), where("itemId", "==", itemId))),
   ]);
-
   const registrations = regsSnap.docs
     .map((d) => ({ id: d.id, ...d.data() }))
     .filter((r) => r.status !== "withdrawn");
-  if (registrations.length === 0) return false;
 
   const marksByReg = new Map();
-  for (const s of scoresSnap.docs.map((d) => d.data())) {
-    const list = marksByReg.get(s.registrationId) || [];
-    list.push(s.totalMarks);
-    marksByReg.set(s.registrationId, list);
+  for (const sc of scoresSnap.docs.map((d) => d.data())) {
+    const list = marksByReg.get(sc.registrationId) || [];
+    list.push(sc.totalMarks);
+    marksByReg.set(sc.registrationId, list);
   }
-  if (!isFullyScored(registrations, marksByReg, assignedJudgeIds.length)) return false;
+
+  const complete =
+    assignedJudgeIds.length > 0 &&
+    registrations.length > 0 &&
+    isFullyScored(registrations, marksByReg, assignedJudgeIds.length);
+
+  const resultRef = doc(db, "fests", festId, "results", itemId);
+
+  if (!complete) {
+    if (onlyIfComplete) return false;
+    // Admin-initiated and no longer complete: drop the stale result and
+    // put the item back where it belongs. Standings are derived from
+    // results, so its points disappear with it.
+    const existing = await getDoc(resultRef);
+    if (existing.exists()) await deleteDoc(resultRef);
+    if (item.status === "completed") {
+      await updateDoc(doc(db, "fests", festId, "items", itemId), { status: "ongoing" });
+    }
+    return false;
+  }
 
   const rankings = computeRankings(registrations, marksByReg, item.maxScore || 10);
-  const resultRef = doc(db, "fests", festId, "results", itemId);
   const existing = await getDoc(resultRef);
-
   await setDoc(resultRef, {
     itemId,
     itemName: item.name,
     rankings,
     finalizedAt: serverTimestamp(),
-    // Never unpublish on recompute — a judge resubmitting after an admin
-    // published shouldn't pull the result back off the public screen.
+    // Never unpublish on recompute — a judge resubmitting, or an admin
+    // correcting a mark, shouldn't pull an announced result off the
+    // public screen. Unpublishing is its own deliberate action.
     published: Boolean(existing.exists() && existing.data().published),
   });
   await updateDoc(doc(db, "fests", festId, "items", itemId), { status: "completed" });
   return true;
+}
+
+/** Admin-only: re-derive an item's result after editing marks or
+ * participants. Exported because those edits happen in views. */
+export async function recomputeItemResult(festId, itemId) {
+  return recomputeResult(festId, itemId);
+}
+
+async function maybeFinalizeItem(festId, itemId) {
+  return recomputeResult(festId, itemId, { onlyIfComplete: true });
 }
 
 // --- Results ----------------------------------------------------------------
@@ -412,4 +449,31 @@ export function watchAllResults(festId, cb) {
 }
 export async function publishResult(festId, itemId) {
   await updateDoc(doc(db, "fests", festId, "results", itemId), { published: true });
+}
+
+/** Takes an announced result back off the public screen. Its points leave
+ * the standings too, since those are derived from published results. */
+export async function unpublishResult(festId, itemId) {
+  await updateDoc(doc(db, "fests", festId, "results", itemId), { published: false });
+}
+
+// --- Admin overrides ---------------------------------------------------------
+// Judges cannot revise a mark once submitted (firestore.rules keeps scores
+// create-once for them). An admin can, because someone has to be able to
+// fix a mis-keyed mark or a participant entered against the wrong item,
+// and with no server there is no back office to do it from.
+
+/** Every judge's marks for one item — the admin's view of the raw data
+ * behind a result. Judges use watchScoresByJudge, which shows only theirs. */
+export function watchItemScores(itemId, cb) {
+  return listen(query(collection(db, "scores"), where("itemId", "==", itemId)), (snap) =>
+    cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+  );
+}
+
+/** Admin-only: overwrite a judge's mark, then re-derive the result so the
+ * published standings can't disagree with the marks behind them. */
+export async function overrideScore(festId, scoreId, totalMarks, itemId) {
+  await updateDoc(doc(db, "scores", scoreId), { totalMarks, editedByAdminAt: serverTimestamp() });
+  await recomputeResult(festId, itemId);
 }

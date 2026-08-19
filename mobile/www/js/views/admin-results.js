@@ -1,5 +1,5 @@
 import { el, mount, initials, toast } from "../util.js";
-import { watchAllResults, publishResult, finalizePendingItems } from "../data.js";
+import { watchAllResults, publishResult, unpublishResult, finalizePendingItems } from "../data.js";
 import { FEST_ID } from "../app-config.js";
 import { navigate } from "../router.js";
 
@@ -48,9 +48,30 @@ export async function renderAdminResults() {
                     "Poster (Top 3)",
                   )
                 : null,
+              el(
+                "button",
+                {
+                  class: "btn secondary",
+                  onclick: () => navigate(`/admin/scores/${result.itemId}`),
+                },
+                "Marks",
+              ),
               !result.published
                 ? el("button", { class: "btn secondary", onclick: () => publishResult(FEST_ID, result.itemId) }, "Publish")
-                : el("span", { class: "chip status-completed" }, "Published"),
+                : el(
+                    "button",
+                    {
+                      class: "btn secondary",
+                      // Publishing is reversible: an announced result that
+                      // turns out to be wrong has to be retractable, and
+                      // its points leave the standings with it.
+                      onclick: async () => {
+                        if (!confirm(`Take "${result.itemName}" back off the public results?`)) return;
+                        await unpublishResult(FEST_ID, result.itemId);
+                      },
+                    },
+                    "Unpublish",
+                  ),
             ]),
           ]),
           el(

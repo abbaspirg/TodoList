@@ -66,3 +66,7 @@ export const watchPublishedResults = (...args) => impl().watchPublishedResults(.
 export const watchAllResults = (...args) => impl().watchAllResults(...args);
 export const publishResult = (...args) => impl().publishResult(...args);
 export const finalizePendingItems = (...args) => impl().finalizePendingItems(...args);
+export const unpublishResult = (...args) => impl().unpublishResult(...args);
+export const watchItemScores = (...args) => impl().watchItemScores(...args);
+export const overrideScore = (...args) => impl().overrideScore(...args);
+export const recomputeItemResult = (...args) => impl().recomputeItemResult(...args);

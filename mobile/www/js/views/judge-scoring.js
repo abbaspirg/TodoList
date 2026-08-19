@@ -27,7 +27,11 @@ export async function renderJudgeScoring({ itemId }) {
     render();
   });
   watchRegistrations(itemId, (regs) => {
-    registrations = regs;
+    // Withdrawn participants are excluded from the result computation, so
+    // they must be excluded here too — otherwise an admin removes someone
+    // and the judge is still shown them, marks them, and wonders why the
+    // item never completes.
+    registrations = regs.filter((r) => r.status !== "withdrawn");
     render();
   });
   watchScoresByJudge(itemId, judgeId, (scores) => {

@@ -164,12 +164,14 @@ service cloud.firestore {
       allow create: if isJudge()
         && request.resource.data.judgeId == myJudgeId()
         && isAssignedTo(request.resource.data.festId, request.resource.data.itemId);
-      // Never editable, by anyone — a judge must not be able to revise a
-      // mark after seeing what others gave. Admin deletion is allowed only
-      // so removing a student or an item can take the now-meaningless
-      // marks with it; a score whose registration is gone can never be
-      // interpreted again.
-      allow update: if false;
+      // A judge can never revise a mark after seeing what others gave —
+      // that's the bias protection, and it stays absolute for them.
+      //
+      // An admin can, because someone must be able to correct a mis-keyed
+      // mark and there is no server-side back office to do it from. The
+      // app re-derives the item's result after any such edit, so a
+      // published standing can't disagree with the marks behind it.
+      allow update: if isAdmin();
       allow delete: if isAdmin();
     }
   }

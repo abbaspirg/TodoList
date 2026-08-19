@@ -1,6 +1,7 @@
 import { el, mount, genId, toast } from "../util.js";
 import { watchItems, watchCategories, addItem, updateItem, setItemStatus, deleteItem } from "../data.js";
 import { FEST_ID } from "../app-config.js";
+import { navigate } from "../router.js";
 
 export async function renderAdminItems() {
   let categories = [];
@@ -102,6 +103,19 @@ export async function renderAdminItems() {
                 "▶",
               )
             : null,
+          el(
+            "button",
+            {
+              class: "btn secondary",
+              style: "font-size:0.72rem;padding:5px 9px",
+              title: "View and edit marks",
+              onclick: (e) => {
+                e.stopPropagation();
+                navigate(`/admin/scores/${item.id}`);
+              },
+            },
+            "Marks",
+          ),
           el(
             "button",
             {
