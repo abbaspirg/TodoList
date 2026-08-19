@@ -31,6 +31,38 @@ firestore.rules, firestore.indexes.json
 
 There is no server component — see *Why no Cloud Functions* below.
 
+## Running it on a computer
+
+The Android app is a wrapper around `mobile/www/`, so the same app runs in
+any modern browser — there's no separate desktop build to maintain.
+
+`.github/workflows/pages.yml` publishes it to **GitHub Pages** on every
+push. From that URL:
+
+- **Windows / Mac / Linux** — open it in Edge or Chrome, then
+  **⋮ → Apps → Install this site as an app**. It gets a Start-menu entry,
+  its own window and a taskbar icon, and behaves like an installed program.
+- **Parents and students** can simply open the link to follow live results,
+  with nothing to install.
+
+Everything points at the same Firebase project, so a judge scoring on a
+phone updates a leaderboard on a laptop in the same second.
+
+Two pieces of setup, both one-off:
+
+1. **Enable Pages**: repo Settings → Pages → Source = **GitHub Actions**.
+2. **Set the project**: repo Settings → Secrets and variables → Actions →
+   **Variables** → add `FIREBASE_CONFIG` (the config JSON) and optionally
+   `INSTITUTION_NAME`. A *variable*, not a secret — a Firebase web config
+   isn't secret, and Actions masks secrets in a way that would corrupt it.
+   Without it the site still deploys and just shows its setup screen.
+3. **Authorize the domain**: Firebase console → Authentication → Settings →
+   Authorized domains → add `<your-user>.github.io`, or sign-in is refused.
+
+Note the poster's Download and Share use ordinary browser APIs here rather
+than the native plugins; downloading works well on desktop, while sharing
+falls back to a download where the browser has no share sheet.
+
 ## Local Test Mode (no Firebase needed)
 
 The app installs and runs fully without any setup: tap **"Try it without a

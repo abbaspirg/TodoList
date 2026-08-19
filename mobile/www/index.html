@@ -4,6 +4,14 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>Madrasa Fest Manager</title>
+<!-- Lets Edge/Chrome install the hosted app on Windows (and Android/iOS)
+     with a proper name and icon — see README "Running it on a computer".
+     Harmless inside the Capacitor WebView, which ignores it. -->
+<link rel="manifest" href="manifest.webmanifest" />
+<link rel="icon" href="icons/icon-192.png" />
+<link rel="apple-touch-icon" href="icons/icon-192.png" />
+<meta name="theme-color" content="#0f6e4f" media="(prefers-color-scheme: light)" />
+<meta name="theme-color" content="#0e1512" media="(prefers-color-scheme: dark)" />
 <!-- Applies a saved light/dark choice before style.css's first paint, so a
      device saved on dark doesn't flash light first — js/theme.js (loaded
      later, as an ES module) owns the toggle button but reuses this same

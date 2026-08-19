@@ -135,7 +135,12 @@ service cloud.firestore {
     // Flat top-level (not nested under fests/{festId}) — matches how the
     // client queries them (filtered by an itemId field).
     match /registrations/{registrationId} {
-      allow read: if true;
+      // Admins and judges only. These carry the name of every participating
+      // student, and only the Judge Panel and the admin screens read them —
+      // no public screen does. Winners' names do reach the public, but via
+      // published results, which is a deliberate announcement rather than
+      // handing out the full roster of minors to anyone with the app URL.
+      allow read: if isAdmin() || isJudge();
       allow write: if isAdmin();
     }
 

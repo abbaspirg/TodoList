@@ -1,0 +1,68 @@
+name: Deploy web app
+
+# Publishes mobile/www to GitHub Pages, giving the same app a URL that
+# works on Windows/Mac/Linux and can be installed from Edge or Chrome
+# ("Install this site as an app"). Parents and students can also just open
+# the link to watch live results without installing anything.
+#
+# The Firebase project is baked in at deploy time from the FIREBASE_CONFIG
+# repository *variable* (Settings -> Secrets and variables -> Actions ->
+# Variables), so the committed build-config.js stays generic and one
+# institution's project isn't hard-coded into the repo. It's a variable
+# rather than a secret because a Firebase web config is not secret — it
+# ships in the source of every Firebase web app, and firestore.rules is
+# what actually controls access. Without the variable set, the site still
+# deploys and simply shows its setup screen.
+
+on:
+  push:
+    branches: ["main", "claude/**"]
+    paths:
+      - "mobile/www/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never let two deploys race; a queued one supersedes an in-flight one.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Bake in the Firebase project
+        if: vars.FIREBASE_CONFIG != ''
+        working-directory: mobile
+        env:
+          INSTITUTION_NAME: ${{ vars.INSTITUTION_NAME }}
+          FIREBASE_CONFIG: ${{ vars.FIREBASE_CONFIG }}
+        run: node scripts/write-build-config.mjs
+
+      - name: Report configuration state
+        run: |
+          if [ -n "${{ vars.FIREBASE_CONFIG }}" ]; then
+            echo "Deploying with a Firebase project baked in."
+          else
+            echo "::warning::FIREBASE_CONFIG repository variable is not set —"
+            echo "::warning::the site will deploy but ask each visitor to paste a config."
+          fi
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: mobile/www
+
+      - id: deployment
+        uses: actions/deploy-pages@v4
