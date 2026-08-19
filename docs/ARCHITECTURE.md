@@ -170,7 +170,13 @@ restores tamper-proofing if an institution ever needs it.
    total would double-count whenever an item was finalized twice — a real
    risk now that any client can finalize, and a latent bug in the earlier
    Cloud Function design.
-6. Poster generation is a manual Admin action off `results/{itemId}` —
+6. **Recovery.** The finalizing write can fail on the judge's device (a
+   stale rules deployment, a dropped connection) *after* their mark is
+   safely stored. Marks are create-once, so nothing on that device will
+   ever retry and the item would sit "ongoing" forever with a full set of
+   marks. Opening Admin > Results runs `finalizePendingItems()`, which
+   finalizes any item whose marks are all in but whose result is missing.
+7. Poster generation is a manual Admin action off `results/{itemId}` —
    one poster per medal position, or a combined top-3 poster.
 
 ## 6. Local Test Mode

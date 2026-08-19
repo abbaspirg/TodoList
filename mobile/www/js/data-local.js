@@ -192,6 +192,18 @@ export function watchPublishedResults(_festId, cb) {
 export function watchAllResults(_festId, cb) {
   return subscribe("results", cb);
 }
+/** Parity with the Firestore backend, where a judge's device can fail to
+ * write the result after its mark lands. Can't happen locally (one device,
+ * no rules), but Admin > Results calls it either way. */
+export async function finalizePendingItems(_festId) {
+  let finalized = 0;
+  for (const item of getAll("items")) {
+    if (item.status === "completed") continue;
+    if (maybeFinalizeItem(item.id)) finalized++;
+  }
+  return finalized;
+}
+
 export async function publishResult(_festId, itemId) {
   // local-store's upsert() matches existing docs by `id`, not `itemId` —
   // maybeFinalizeItem() below sets both to the same value, so this must
@@ -205,14 +217,14 @@ export async function publishResult(_festId, itemId) {
 // backend; this just gathers the inputs from the local store.
 function maybeFinalizeItem(itemId) {
   const item = get("items", itemId);
-  if (!item) return;
+  if (!item) return false;
   const assignedJudgeIds = item.assignedJudgeIds || [];
-  if (assignedJudgeIds.length === 0) return;
+  if (assignedJudgeIds.length === 0) return false;
 
   const registrations = getAll("registrations").filter(
     (r) => r.itemId === itemId && r.status !== "withdrawn",
   );
-  if (registrations.length === 0) return;
+  if (registrations.length === 0) return false;
 
   const scoresByReg = new Map();
   for (const s of getAll("scores").filter((s) => s.itemId === itemId)) {
@@ -221,7 +233,7 @@ function maybeFinalizeItem(itemId) {
     scoresByReg.set(s.registrationId, list);
   }
 
-  if (!isFullyScored(registrations, scoresByReg, assignedJudgeIds.length)) return;
+  if (!isFullyScored(registrations, scoresByReg, assignedJudgeIds.length)) return false;
 
   const maxScore = item.maxScore || 10;
   const ranked = computeRankings(registrations, scoresByReg, maxScore);
@@ -238,6 +250,7 @@ function maybeFinalizeItem(itemId) {
     published: Boolean(existing?.published),
   });
   upsert("items", { id: itemId, status: "completed" });
+  return true;
   // Group totals are derived on read (watchGroupTotals), so there's
   // nothing to increment here.
 }

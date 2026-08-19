@@ -1,5 +1,5 @@
-import { el, mount, initials } from "../util.js";
-import { watchAllResults, publishResult } from "../data.js";
+import { el, mount, initials, toast } from "../util.js";
+import { watchAllResults, publishResult, finalizePendingItems } from "../data.js";
 import { FEST_ID } from "../app-config.js";
 import { navigate } from "../router.js";
 
@@ -8,6 +8,19 @@ const MEDALS = { 1: "🥇", 2: "🥈", 3: "🥉" };
 export async function renderAdminResults() {
   const listHost = el("div", {});
   mount(el("div", {}, [el("h1", { class: "page-title" }, "Results & Analytics"), listHost]));
+
+  // Rescue any item whose marks are all in but whose result never got
+  // written — see data-firestore.js finalizePendingItems. Marks are
+  // create-once, so nothing on a judge's device would ever retry, and the
+  // item would otherwise sit "ongoing" forever. Runs before the listener
+  // below so a rescued result appears in the same render.
+  try {
+    const rescued = await finalizePendingItems(FEST_ID);
+    if (rescued > 0) toast(`Finished calculating ${rescued} item${rescued === 1 ? "" : "s"}`);
+  } catch (err) {
+    console.error("Couldn't finalize pending items:", err);
+    toast(err?.message || "Couldn't finish calculating results.");
+  }
 
   watchAllResults(FEST_ID, (results) => {
     if (results.length === 0) {

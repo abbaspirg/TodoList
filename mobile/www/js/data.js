@@ -65,3 +65,4 @@ export const submitScore = (...args) => impl().submitScore(...args);
 export const watchPublishedResults = (...args) => impl().watchPublishedResults(...args);
 export const watchAllResults = (...args) => impl().watchAllResults(...args);
 export const publishResult = (...args) => impl().publishResult(...args);
+export const finalizePendingItems = (...args) => impl().finalizePendingItems(...args);

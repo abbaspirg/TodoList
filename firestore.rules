@@ -145,7 +145,19 @@ service cloud.firestore {
     }
 
     match /scores/{scoreId} {
-      allow read: if isAdmin() || (isJudge() && resource.data.judgeId == myJudgeId());
+      // Any judge may read marks, not only their own. That is not laxness:
+      // with no server, the device that submits the last mark is what
+      // computes the result, and to average an item it must read every
+      // judge's mark for it. Firestore rejects a query it cannot prove
+      // stays inside the rule, so a rule of "your own marks only" makes
+      // that query — and therefore every result — impossible.
+      //
+      // The bias protection that matters is still intact: marks are
+      // create-once and never editable (below), so a judge cannot revise
+      // theirs after seeing anyone else's. The Judge Panel also only ever
+      // shows a judge their own. What's given up is that a determined
+      // judge could read others' raw marks through the API.
+      allow read: if isAdmin() || isJudge();
       // Append-only: a judge writes their own mark once and can't revise it
       // after seeing anyone else's. The festId on the document is what lets
       // the assignment check above find the right judges/ collection.

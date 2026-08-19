@@ -309,7 +309,38 @@ export async function submitScore(score) {
   // docs/ARCHITECTURE.md §4-5.
   const id = `${score.registrationId}_${score.judgeId}`;
   await setDoc(doc(db, "scores", id), { ...score, id, submittedAt: serverTimestamp() });
-  await maybeFinalizeItem(score.festId, score.itemId);
+
+  // The mark is safely stored by this point. Computing the result is a
+  // separate step that can fail on its own (a stale rules deployment, a
+  // dropped connection), and when it does the judge should not be told
+  // their submission failed — nor left believing everything worked, which
+  // is exactly how items sat "ongoing" with every mark in and no result.
+  // Admin > Results retries any such item, so this is recoverable.
+  try {
+    await maybeFinalizeItem(score.festId, score.itemId);
+  } catch (err) {
+    console.error("Result computation failed after saving the mark:", err);
+    toast("Mark saved, but the result couldn't be calculated yet — the admin can finish it from Results.");
+  }
+}
+
+/** Finalizes any item whose marks are all in but whose result was never
+ * written — the recovery path for the failure above.
+ *
+ * Called when an admin opens Results. It matters because marks are
+ * create-once: if the finalizing write fails on the judge's device,
+ * nothing on that device will ever retry it, and re-submitting is blocked.
+ * Without this an item could be stuck "ongoing" forever with a full set of
+ * marks. Runs as the admin, who can read everything. */
+export async function finalizePendingItems(festId) {
+  const itemsSnap = await getDocs(collection(db, "fests", festId, "items"));
+  let finalized = 0;
+  for (const itemDoc of itemsSnap.docs) {
+    if (itemDoc.data().status === "completed") continue;
+    if ((itemDoc.data().assignedJudgeIds || []).length === 0) continue;
+    if (await maybeFinalizeItem(festId, itemDoc.id)) finalized++;
+  }
+  return finalized;
 }
 
 /** Computes and writes an item's result once every assigned judge has
@@ -325,10 +356,10 @@ export async function submitScore(score) {
  * at once write the same content. */
 async function maybeFinalizeItem(festId, itemId) {
   const itemSnap = await getDoc(doc(db, "fests", festId, "items", itemId));
-  if (!itemSnap.exists()) return;
+  if (!itemSnap.exists()) return false;
   const item = itemSnap.data();
   const assignedJudgeIds = item.assignedJudgeIds || [];
-  if (assignedJudgeIds.length === 0) return;
+  if (assignedJudgeIds.length === 0) return false;
 
   const [regsSnap, scoresSnap] = await Promise.all([
     getDocs(query(collection(db, "registrations"), where("itemId", "==", itemId))),
@@ -338,7 +369,7 @@ async function maybeFinalizeItem(festId, itemId) {
   const registrations = regsSnap.docs
     .map((d) => ({ id: d.id, ...d.data() }))
     .filter((r) => r.status !== "withdrawn");
-  if (registrations.length === 0) return;
+  if (registrations.length === 0) return false;
 
   const marksByReg = new Map();
   for (const s of scoresSnap.docs.map((d) => d.data())) {
@@ -346,7 +377,7 @@ async function maybeFinalizeItem(festId, itemId) {
     list.push(s.totalMarks);
     marksByReg.set(s.registrationId, list);
   }
-  if (!isFullyScored(registrations, marksByReg, assignedJudgeIds.length)) return;
+  if (!isFullyScored(registrations, marksByReg, assignedJudgeIds.length)) return false;
 
   const rankings = computeRankings(registrations, marksByReg, item.maxScore || 10);
   const resultRef = doc(db, "fests", festId, "results", itemId);
@@ -362,6 +393,7 @@ async function maybeFinalizeItem(festId, itemId) {
     published: Boolean(existing.exists() && existing.data().published),
   });
   await updateDoc(doc(db, "fests", festId, "items", itemId), { status: "completed" });
+  return true;
 }
 
 // --- Results ----------------------------------------------------------------
