@@ -1,0 +1,8 @@
+{
+  "appId": "com.ludocircle.app",
+  "appName": "Ludo Circle",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": false
+  }
+}

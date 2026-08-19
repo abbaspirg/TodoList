@@ -33,3 +33,9 @@ firebase-debug.log
 
 # Misc
 .DS_Store
+
+# Ludo Circle
+ludo/node_modules/
+ludo/android/
+ludo/www/_harness.html
+ludo/www/_preview.html

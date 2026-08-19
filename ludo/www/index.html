@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Ludo Circle</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="theme-color" content="#12996b" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e1512" media="(prefers-color-scheme: dark)">
+<!-- Applies a saved light/dark choice before the stylesheet's first paint,
+     so a device set to dark doesn't flash light first. js/theme.js owns the
+     toggle and reuses this same key and attribute. -->
+<script>
+  (function () {
+    try {
+      var t = localStorage.getItem("appTheme");
+      if (t === "light" || t === "dark") document.documentElement.setAttribute("data-theme", t);
+    } catch (e) {}
+  })();
+</script>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="app-header">
+    <button id="backBtn" class="icon-btn" title="Back" hidden>‹</button>
+    <div class="brand"><span class="brand-icon">🎲</span><span>Ludo Circle</span></div>
+    <div class="spacer"></div>
+    <button id="themeToggleBtn" class="icon-btn" title="Switch theme">🌙</button>
+  </header>
+
+  <main class="view">
+    <section data-screen="loading" class="center-screen">
+      <p class="subtitle">Starting…</p>
+    </section>
+
+    <section data-screen="setup" hidden><div id="setupHost"></div></section>
+    <section data-screen="home" hidden><div id="homeHost"></div></section>
+    <section data-screen="lobby" hidden><div id="lobbyHost"></div></section>
+
+    <section data-screen="game" hidden>
+      <div id="gameStatus" class="game-status"></div>
+      <div class="board-wrap">
+        <canvas id="board"></canvas>
+      </div>
+      <div id="gameControls" class="game-controls"></div>
+      <div id="playersPanel" class="players-panel"></div>
+      <details class="log-panel">
+        <summary>Move history</summary>
+        <ol id="moveLog" class="move-log"></ol>
+      </details>
+    </section>
+
+    <section data-screen="settings" hidden><div id="settingsHost"></div></section>
+  </main>
+
+  <script src="js/vendor/capacitor-plugins.js"></script>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
