@@ -40,12 +40,15 @@ security rules:
     Firebase JS SDK (modular API), imported straight from the `gstatic.com`
     CDN as ES modules — no npm bundling required, works the same in a browser
     tab and inside the Capacitor WebView.
-  - **Firebase Auth** — email/password for Admin & Judges; custom claims carry
-    `role` and (for judges) `assignedItemIds`.
-  - **Cloud Storage** — student photos, generated poster images.
-  - **Cloud Functions** (`functions/`, TypeScript) — server-side, tamper-proof
-    result computation (rank + group totals), judge-assignment (writes the
-    Auth custom claims a client can't set on itself).
+  - **Firebase Auth** — email/password for Admin & Judges. Roles live in
+    `roles/{uid}` Firestore documents, *not* custom claims: claims can only
+    be set by the Admin SDK, which means a server, which means the paid
+    Blaze plan.
+  - **No Cloud Storage, no Cloud Functions.** Both require Blaze, and this
+    app is designed to run entirely inside an institution's no-cost Spark
+    quota (see README "Why no Cloud Functions"). Instead: student photos are
+    stored inline on their document as resized data URLs, and result
+    computation runs on the client via `js/scoring.js`.
 - **Offline:** Firestore's built-in offline persistence — judges can keep scoring
   on a flaky venue Wi-Fi; writes sync once connectivity returns.
 - **Poster generation:** client-side `<canvas>` rendering (photo, name, group,
@@ -67,11 +70,13 @@ mobile/                       # the Capacitor project — see mobile/README-like
     index.html                    # shell: header/nav + <main id="view"> the router renders into
     style.css
     js/
-      firebase-config.js           # Firebase project config (TODO placeholders until configured)
-      firebase.js                   # Firebase SDK init, re-exports the modular functions used
-      auth.js                        # sign-in/out, role-from-custom-claim
-      data.js                         # one function per Firestore operation (mirrors DB schema)
-      point-system.js                  # rank -> points table (mirrored in functions/src/pointSystem.ts)
+      app-config.js                # which Firebase project this install uses (see README)
+      build-config.js               # baked-in project for a per-institution build (empty otherwise)
+      firebase.js                    # Firebase SDK init, re-exports the modular functions used
+      auth.js                         # sign-in/out, role from the roles/{uid} document
+      data.js                          # one function per data operation (mirrors DB schema)
+      scoring.js                        # ranking/grading/group totals, shared by both backends
+      point-system.js                    # rank -> points and grade -> points tables
       router.js                         # hash router + guards
       util.js                            # el()/mount() DOM helpers, toast, id generation
       app.js                              # entry point: registers routes, wires auth-state redirect
@@ -90,8 +95,9 @@ mobile/                       # the Capacitor project — see mobile/README-like
         public-leaderboard.js                               # live per-group grand total
         public-results.js                                     # 1st/2nd/3rd per item
         poster.js                                               # canvas poster + download/share
-functions/                    # Cloud Functions (TypeScript) — same regardless of client framework
-firestore.rules, firestore.indexes.json, storage.rules
+        setup.js                                                  # paste an institution's Firebase config
+  scripts/write-build-config.mjs   # bakes one institution into a build (CI)
+firestore.rules, firestore.indexes.json      # no server component — see README
 ```
 
 - **Views** (`js/views/*.js`) only import `js/data.js`, `js/auth.js`, and
@@ -107,20 +113,33 @@ firestore.rules, firestore.indexes.json, storage.rules
 
 ## 4. Roles & Access Control
 
-- Firebase Auth custom claims: `{ role: "admin" | "judge", assignedItems: [itemId, ...] }`
-  set by an Admin action (Cloud Function `assignJudgeToItem` updates claims).
+- **Roles are documents, not claims**: `roles/{uid}` holds `{ role: "admin" }`
+  or `{ role: "judge", judgeId }`. Nothing in the app can write that
+  collection — `firestore.rules` denies all writes — so an institution's
+  owner seeds it by hand in the Firebase console. That unwritability is
+  precisely what makes it safe for the rules to trust.
 - Firestore Security Rules enforce, server-side:
-  - Only `role == "admin"` may write to `students`, `groups`, `categories`,
+  - Only `role == "admin"` may write `students`, `groups`, `categories`,
     `items`, `registrations`, `judges`.
-  - A judge may only **create** a `scores` document where
-    `judgeId == request.auth.uid` AND `itemId in request.auth.token.assignedItems`,
-    and only while the parent `items/{itemId}.status == "ongoing"`.
-  - A judge **cannot update or delete** a score once submitted (append-only —
-    corrections go through an Admin-only `scoreCorrections` audit trail).
-  - `results` and `posters` are public-readable, admin/Cloud-Function-writable
-    only (never written directly by a judge or the public).
-- Public/Display screen uses Firebase Anonymous Auth (or no auth, if rules allow
-  unauthenticated read of `results`, `leaderboard`, `posters` collections only).
+  - A judge may only **create** a `scores` document where `judgeId` is their
+    own, and the item is listed in their own `judges/{judgeId}.assignedItemIds`
+    (which only an admin can write) — the replacement for the old
+    `assignedItems` claim.
+  - A judge **cannot update or delete** a score once submitted (append-only).
+  - `results` may be written by an admin or by an assigned judge (the client
+    that submits the final score finalizes the item), but `published` may
+    only be changed by an admin, in either direction.
+  - `students` is readable only by admins and judges — it holds names, class
+    and photos of minors, and is deliberately not public.
+- Public screens read `results` (published only) and derive group standings
+  from them without signing in.
+
+**Known limitation.** With no server, the rules can enforce *who* writes a
+result and *what shape* it has, but cannot verify the marks were averaged
+honestly — an assigned judge could write a dishonest result document.
+Publishing stays admin-only, so nothing reaches the public screen without an
+admin acting. Moving `maybeFinalizeItem` back into a Cloud Function on Blaze
+restores tamper-proofing if an institution ever needs it.
 
 ## 5. Real-Time Scoring & Result Computation Flow
 
@@ -131,20 +150,28 @@ firestore.rules, firestore.indexes.json, storage.rules
 3. Each assigned judge submits one `scores` document per participant
    (`{ itemId, participantId, judgeId, marks, criteria: {...}, submittedAt }`).
    Marks entry is validated client-side (min/max per criterion) before write.
-4. A Firestore-triggered Cloud Function (`onScoreWrite`) recomputes, per
-   participant: `totalMarks = average(marks across judges who have submitted)`.
-   When **all** assigned judges for that item have submitted (or Admin manually
-   force-finalizes), the function:
-   - Ranks participants by `totalMarks` (tie-break: configurable — e.g. highest
-     single-judge score, or Admin manual tie-break screen).
-   - Writes `results/{itemId}` with ranked list + points-per-rank (from the
-     configurable point table, e.g. 1st=5, 2nd=3, 3rd=1, participation=1).
-   - Increments each winner's **Group's** running total in `groupTotals/{groupId}`
-     (atomic Firestore transaction/`FieldValue.increment`), which is what the
-     public leaderboard and Admin analytics screen read live.
+4. After each submission the submitting client checks whether **every**
+   assigned judge has now scored **every** participant. Once they have, it
+   computes the result via `js/scoring.js` — shared verbatim with Local Test
+   Mode, so there is one implementation rather than a client copy and a
+   server copy drifting apart — and:
+   - Averages each participant's marks and ranks them by `totalMarks`.
+   - Assigns a Grade from the percentage of the item's own `maxScore`, and
+     points = rank points + grade points (see `js/point-system.js`).
+   - Writes `results/{itemId}` with the full ranked list, `published: false`.
    - Sets `items/{itemId}.status = "completed"`.
-5. Poster generation triggers off `results/{itemId}` being written — Admin (or
-   an automatic Cloud Function) renders one poster per medal position.
+
+   Recomputation is idempotent: the result document is derived entirely from
+   the scores, so two devices finishing at the same moment write identical
+   content. `published` is preserved across recomputes, so a late resubmission
+   can't pull an already-published result off the public screen.
+5. **Group standings are derived, not accumulated.** `computeGroupTotals()`
+   sums points across the finalized results on read. An incremented running
+   total would double-count whenever an item was finalized twice — a real
+   risk now that any client can finalize, and a latent bug in the earlier
+   Cloud Function design.
+6. Poster generation is a manual Admin action off `results/{itemId}` —
+   one poster per medal position, or a combined top-3 poster.
 
 ## 6. Local Test Mode
 
@@ -153,18 +180,16 @@ export is implemented twice — once against Firestore (`data-firestore.js` /
 `auth-firebase.js`) and once against `localStorage` (`data-local.js` /
 `auth-local.js`, via the small reactive store in `local-store.js`) — chosen
 per-call by `firebase.js`'s `isLocalMode()` (true whenever
-`firebase-config.js` still has its placeholder `apiKey`). Views only ever
+no project is configured — see README). Views only ever
 import the dispatcher, never the two backend-specific modules, so no screen
 needs to know or care which backend is active.
 
-The local backend replicates the one piece of server-side logic that would
-otherwise be missing without Cloud Functions: `data-local.js`'s
-`submitScore()` runs the same rank + group-total computation described in
-§5 synchronously in the browser after every score write, instead of relying
-on the `onScoreWrite` trigger. This is intentionally *not* how the
-Firestore-backed path works (that stays server-side and tamper-proof, per
-§4) — Local Test Mode trades that guarantee for zero setup, which is fine
-since it's explicitly a single-device sandbox, not a real fest's data.
+Both backends finalize results the same way — `submitScore()` calls into
+`js/scoring.js` after every score write — so Local Test Mode is a genuine
+rehearsal of the real thing rather than an approximation of it. What Local
+Test Mode gives up is only where the data lives (this device's
+`localStorage`) and who may write it (no auth, no rules), not how results
+are computed.
 
 ## 7. Non-Functional Notes
 

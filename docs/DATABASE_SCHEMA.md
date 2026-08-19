@@ -157,14 +157,19 @@ erDiagram
   get the mark used for ranking and grading.
 - **`RESULT.rankings`** — JSON array of
   `{ registrationId, rank, totalMarks, maxScore, grade, points }`, written
-  once by the result-computation Cloud Function; `published` gates visibility
+  once when the item is finalized (client-side, see ARCHITECTURE.md §5);
+  `published` gates visibility
   on the public leaderboard (Admin can review before publishing). Every
   registrant gets an entry, not just the top 3 — grade doesn't depend on
   rank, so a 5th-place participant can still earn an A grade and its points.
-- **`GROUP_TOTAL`** — one row per group, updated transactionally every time a
-  `RESULT` is finalized; this is what the "overall grand total" screen reads —
-  it is a materialized aggregate, not computed live from all results every time,
-  so the leaderboard stays O(1) to read regardless of how many items have run.
+- **`GROUP_TOTAL`** — **derived, not stored.** Group standings are summed from
+  the finalized `RESULT` rows on read (`computeGroupTotals()` in
+  `mobile/www/js/scoring.js`). It was originally a materialized aggregate
+  incremented per finalization, but with clients (rather than one Cloud
+  Function) finalizing items, any re-finalization — a judge resubmitting, or
+  two devices finishing at once — double-counted. Deriving is O(results),
+  trivial at fest scale, and cannot drift. The SQL DDL below keeps the table
+  for a hypothetical SQL backend, where a trigger could maintain it safely.
 - **Points are rank points + grade points, additive** — the common
   Kalolsavam-style fest convention. Rank points come from a rank → points
   table (1st = 5, 2nd = 3, 3rd = 1, else a flat participation point,
@@ -172,8 +177,8 @@ erDiagram
   → grade table (A ≥ 90% = 5pts, B ≥ 75% = 3pts, C ≥ 60% = 1pt, configurable)
   applied to every participant regardless of rank. See
   `mobile/www/js/point-system.js` (client + Local Test Mode) and
-  `functions/src/pointSystem.ts` (Cloud Function) — the two are kept in sync
-  by hand since they can't share source.
+  `mobile/www/js/scoring.js`, which both backends share — there is no
+  server-side copy to keep in sync.
 
 ## 3. Firestore Mapping
 
@@ -182,20 +187,27 @@ Firestore is document/collection based, so the relational model above maps to
 IDs for relationships (no native joins):
 
 ```
-fests/{festId}
+fests/{festId}                  # madrasaName lives on this doc
   groups/{groupId}
   categories/{categoryId}
-  students/{studentId}
+  students/{studentId}          # photoUrl is an inline data URL, not a Storage link
   items/{itemId}                # assignedJudgeIds: [judgeId, ...] denormalized onto the doc
   results/{itemId}              # one result doc per item, doc ID == itemId
-  groupTotals/{groupId}         # one doc per group, doc ID == groupId
   posters/{posterId}
-  judges/{judgeId}
+  judges/{judgeId}              # assignedItemIds: [itemId, ...] — what the rules check
 
+roles/{uid}                     # { role: "admin" } | { role: "judge", judgeId }
+                                # NOT writable by the app — seeded by hand in the
+                                # Firebase console; this is the root of authority
 registrations/{registrationId}  # flat top-level, filtered by itemId field —
 scores/{scoreId}                # simpler security rules (both are queried
                                  # across the whole app, not per-fest-scoped)
 ```
+
+There is no `groupTotals` collection: standings are derived from `results`
+(see the `GROUP_TOTAL` note above). `scores` documents carry `festId` so the
+security rules can locate the judge's `judges/{judgeId}` document to check
+their assignment.
 
 - Denormalize `groupName`, `groupColorHex`, `studentName`, `studentPhotoUrl`
   onto `registrations` documents at write time — the Judge Panel and public

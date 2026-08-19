@@ -1,6 +1,6 @@
 import { el, mount, toast } from "../util.js";
 import { watchGroupTotals } from "../data.js";
-import { FEST_ID } from "../firebase-config.js";
+import { FEST_ID } from "../app-config.js";
 import { signOut } from "../auth.js";
 import { isLocalMode } from "../firebase.js";
 import { resetLocalData } from "../local-store.js";

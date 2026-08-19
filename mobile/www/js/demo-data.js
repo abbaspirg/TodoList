@@ -9,7 +9,7 @@
 //
 // Local Test Mode only (js/firebase.js isLocalMode()); it imports
 // js/data-local.js directly for that reason.
-import { FEST_ID } from "./firebase-config.js";
+import { FEST_ID } from "./app-config.js";
 import { resetLocalData } from "./local-store.js";
 import {
   addGroup,
@@ -253,7 +253,7 @@ export async function loadDemoData() {
   for (const judge of JUDGES) {
     await addJudge(FEST_ID, { ...judge, festId: FEST_ID });
     const assigned = ITEMS.filter((i) => i.judgeIds.includes(judge.id)).map((i) => i.id);
-    await assignJudgeToItems(judge.id, assigned);
+    await assignJudgeToItems(FEST_ID, judge.id, assigned);
   }
 
   for (const item of ITEMS) {
@@ -285,6 +285,7 @@ export async function loadDemoData() {
     for (const [judgeIndex, judgeId] of judgeIds.entries()) {
       for (const entry of item.entries) {
         await submitScore({
+          festId: FEST_ID,
           itemId: item.id,
           registrationId: `${item.id}_${entry.studentId}`,
           judgeId,

@@ -8,7 +8,7 @@
 // relevant to that query.
 import { getAll, get, upsert, remove, subscribe, subscribeSettings, updateSettings } from "./local-store.js";
 import { genId } from "./util.js";
-import { pointsForRank, gradeForMark, pointsForGrade } from "./point-system.js";
+import { computeRankings, computeGroupTotals, isFullyScored } from "./scoring.js";
 
 // --- Fest settings (Madrasa name, shown on posters) ------------------------
 export function watchFestSettings(_festId, cb) {
@@ -22,8 +22,16 @@ export async function updateFestSettings(_festId, settings) {
 export function watchGroups(_festId, cb) {
   return subscribe("groups", cb);
 }
+// Derived from results rather than read from a stored running tally — see
+// js/scoring.js computeGroupTotals for why.
 export function watchGroupTotals(_festId, cb) {
-  return subscribe("groupTotals", cb);
+  const emit = () => cb(computeGroupTotals(getAll("results"), getAll("groups")));
+  const unsubResults = subscribe("results", emit);
+  const unsubGroups = subscribe("groups", emit);
+  return () => {
+    unsubResults();
+    unsubGroups();
+  };
 }
 export async function addGroup(_festId, group) {
   upsert("groups", { ...group, id: group.id || genId() });
@@ -105,7 +113,7 @@ export function watchJudges(_festId, cb) {
 export async function addJudge(_festId, judge) {
   upsert("judges", { ...judge, id: judge.id || genId(), assignedItemIds: [] });
 }
-export async function assignJudgeToItems(judgeId, itemIds) {
+export async function assignJudgeToItems(_festId, judgeId, itemIds) {
   // No Cloud Function / custom claims needed locally — the judge doc's
   // assignedItemIds *is* the authorization check in Local Test Mode (see
   // js/auth-local.js, which signs in "as" a specific judge id directly).
@@ -156,8 +164,9 @@ export async function publishResult(_festId, itemId) {
   upsert("results", { id: itemId, itemId, published: true });
 }
 
-// --- Result computation (the local equivalent of functions/src/index.ts
-// onScoreWrite) -------------------------------------------------------------
+// --- Result computation -----------------------------------------------------
+// Ranking/grading itself lives in js/scoring.js, shared with the Firestore
+// backend; this just gathers the inputs from the local store.
 function maybeFinalizeItem(itemId) {
   const item = get("items", itemId);
   if (!item) return;
@@ -176,59 +185,23 @@ function maybeFinalizeItem(itemId) {
     scoresByReg.set(s.registrationId, list);
   }
 
-  const allScored = registrations.every(
-    (r) => (scoresByReg.get(r.id)?.length ?? 0) >= assignedJudgeIds.length,
-  );
-  if (!allScored) return;
+  if (!isFullyScored(registrations, scoresByReg, assignedJudgeIds.length)) return;
 
   const maxScore = item.maxScore || 10;
-  const ranked = registrations
-    .map((r) => {
-      const marks = scoresByReg.get(r.id) || [];
-      const totalMarks = marks.reduce((a, b) => a + b, 0) / marks.length;
-      return { ...r, totalMarks };
-    })
-    .sort((a, b) => b.totalMarks - a.totalMarks)
-    .map((entry, index) => {
-      const rank = index + 1;
-      const grade = gradeForMark(entry.totalMarks, maxScore);
-      return {
-        registrationId: entry.id,
-        studentName: entry.studentName,
-        studentPhotoUrl: entry.studentPhotoUrl || null,
-        groupId: entry.groupId,
-        groupName: entry.groupName,
-        rank,
-        totalMarks: entry.totalMarks,
-        maxScore,
-        grade,
-        // Rank points (1st/2nd/3rd, else a flat participation point) +
-        // grade points (0 below a C) — see js/point-system.js for why
-        // both are additive.
-        points: pointsForRank(rank) + pointsForGrade(grade),
-      };
-    });
+  const ranked = computeRankings(registrations, scoresByReg, maxScore);
 
+  // Publishing state must survive a recompute (a judge resubmitting after
+  // an admin already published shouldn't silently unpublish the result).
+  const existing = get("results", itemId);
   upsert("results", {
     itemId,
     id: itemId,
     itemName: item.name,
     rankings: ranked,
     finalizedAt: new Date().toISOString(),
-    published: false,
+    published: Boolean(existing?.published),
   });
   upsert("items", { id: itemId, status: "completed" });
-
-  for (const entry of ranked) {
-    const group = get("groups", entry.groupId);
-    const existing = get("groupTotals", entry.groupId);
-    upsert("groupTotals", {
-      id: entry.groupId,
-      groupId: entry.groupId,
-      groupName: entry.groupName,
-      groupColorHex: group?.colorHex || "#999999",
-      totalPoints: (existing?.totalPoints || 0) + entry.points,
-      updatedAt: new Date().toISOString(),
-    });
-  }
+  // Group totals are derived on read (watchGroupTotals), so there's
+  // nothing to increment here.
 }

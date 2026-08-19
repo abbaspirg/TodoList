@@ -1,6 +1,6 @@
 import { el, mount, toast, genId } from "../util.js";
 import { watchGroups, addGroup, updateGroup, deleteGroup } from "../data.js";
-import { FEST_ID } from "../firebase-config.js";
+import { FEST_ID } from "../app-config.js";
 
 // A fest most often runs 2 competing groups, but some run 3+ — Groups are a
 // plain admin-managed list, not a fixed pair. This palette just gives each

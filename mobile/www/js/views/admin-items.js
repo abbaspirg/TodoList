@@ -1,6 +1,6 @@
 import { el, mount, genId, toast } from "../util.js";
 import { watchItems, watchCategories, addItem, updateItem, setItemStatus } from "../data.js";
-import { FEST_ID } from "../firebase-config.js";
+import { FEST_ID } from "../app-config.js";
 
 export async function renderAdminItems() {
   let categories = [];

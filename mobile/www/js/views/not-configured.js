@@ -1,23 +1,39 @@
 import { el, mount } from "../util.js";
 import { initError } from "../firebase.js";
+import { clearFirebaseConfig, isBakedIn } from "../app-config.js";
 
-// Shown only for a *real* Firebase misconfiguration (a project was
-// configured but failed to initialize) — Local Test Mode's placeholder
-// config doesn't hit this at all, it runs against js/data-local.js
-// instead. See js/firebase.js hasFirebaseError().
+// Shown only for a *real* Firebase failure: a project is configured but
+// initializing it failed (wrong project, no internet, CDN blocked). Having
+// no project at all is a different state and shows views/setup.js instead
+// — see js/firebase.js needsSetup() vs hasFirebaseError().
 export function renderNotConfigured() {
   mount(
     el("div", { class: "card" }, [
-      el("h1", { class: "page-title" }, "Couldn't connect to Firebase"),
+      el("h1", { class: "page-title" }, "Couldn't connect"),
       el(
         "p",
         {},
-        "js/firebase-config.js has a project configured, but initializing it " +
-          "failed — check the project ID/API key and that the device has " +
-          "internet access. To fall back to Local Test Mode instead, reset " +
-          "apiKey to \"TODO\" in that file.",
+        "The app has a Firebase project configured, but couldn't reach it. " +
+          "Check that this device has internet access, then try again.",
       ),
       initError ? el("p", { style: "color:var(--danger)" }, String(initError.message || initError)) : null,
+      // A baked-in build has one fixed project, so there's nothing for the
+      // user to re-enter — only a pasted config can be cleared and redone.
+      !isBakedIn()
+        ? el("div", { class: "btn-row" }, [
+            el(
+              "button",
+              {
+                class: "btn secondary",
+                onclick: () => {
+                  clearFirebaseConfig();
+                  location.reload();
+                },
+              },
+              "Re-enter configuration",
+            ),
+          ])
+        : null,
     ]),
   );
 }

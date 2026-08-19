@@ -1,6 +1,6 @@
 import { el, mount, initials, genId, toast, resizeImageFile } from "../util.js";
 import { watchStudents, watchGroups, watchCategories, addStudent, updateStudent, uploadStudentPhoto } from "../data.js";
-import { FEST_ID } from "../firebase-config.js";
+import { FEST_ID } from "../app-config.js";
 
 export async function renderAdminStudents() {
   let groups = [];

@@ -6,7 +6,7 @@
 flowchart TD
     A[App Launch] --> B{Logged in?}
     B -- No --> C[Login Screen<br/>email/password or phone OTP]
-    C --> D{Role from<br/>custom claims}
+    C --> D{Role from<br/>roles/uid doc}
     B -- Yes --> D
     D -- admin --> E[Admin Dashboard]
     D -- judge --> F[Judge Item Queue]
@@ -14,7 +14,7 @@ flowchart TD
 ```
 
 A single app binary serves all three roles; the hash router (`mobile/www/js/router.js`)
-redirects post-login based on the Firebase Auth custom claim `role`. The Public Display flow is
+redirects post-login based on `role` in the user's `roles/{uid}` document. The Public Display flow is
 reachable without login via a "View Results" entry point on the login screen
 (for parents/students), and separately as a dedicated kiosk build for a lobby
 TV.

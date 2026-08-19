@@ -9,7 +9,23 @@ on:
   pull_request:
     paths:
       - "mobile/**"
-  workflow_dispatch: {}
+  # Per-institution build: paste a customer's Firebase web config and their
+  # name, and the resulting APK connects to their project on first launch
+  # with no setup step for anyone. Leave both blank for the generic build,
+  # where an admin pastes the config into the app's setup screen instead.
+  # See README "Multi-institution setup". A Firebase web config is not a
+  # secret (it ships in the source of every Firebase web app), so it's fine
+  # as a plain workflow input rather than a repository secret.
+  workflow_dispatch:
+    inputs:
+      institution_name:
+        description: "Institution name shown in the app (blank = generic build)"
+        required: false
+        default: ""
+      firebase_config:
+        description: "That institution's Firebase web config, as JSON (blank = generic build)"
+        required: false
+        default: ""
 
 jobs:
   build:
@@ -30,6 +46,15 @@ jobs:
           java-version: 21
 
       - uses: android-actions/setup-android@v3
+
+      # Fails the build outright on a malformed config, rather than
+      # shipping an APK that silently falls back to the setup screen.
+      - name: Bake in institution config
+        if: inputs.firebase_config != ''
+        env:
+          INSTITUTION_NAME: ${{ inputs.institution_name }}
+          FIREBASE_CONFIG: ${{ inputs.firebase_config }}
+        run: node scripts/write-build-config.mjs
 
       - name: Install dependencies
         run: npm ci

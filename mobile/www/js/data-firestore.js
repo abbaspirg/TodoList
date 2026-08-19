@@ -5,9 +5,10 @@
 // equivalent. Views only ever import js/data.js, never this file directly.
 import {
   db,
-  storage,
   collection,
   doc,
+  getDoc,
+  getDocs,
   setDoc,
   updateDoc,
   deleteDoc,
@@ -16,12 +17,10 @@ import {
   where,
   orderBy,
   serverTimestamp,
-  storageRef,
-  uploadBytes,
-  getDownloadURL,
-  FIREBASE_SDK_CDN,
+  writeBatch,
 } from "./firebase.js";
 import { genId } from "./util.js";
+import { computeRankings, computeGroupTotals, isFullyScored } from "./scoring.js";
 
 // --- Fest settings (Madrasa name, shown on posters) ------------------------
 export function watchFestSettings(festId, cb) {
@@ -39,10 +38,28 @@ export function watchGroups(festId, cb) {
     cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
   );
 }
+// Derived from results rather than stored as a running tally — see
+// js/scoring.js computeGroupTotals. With clients (not one Cloud Function)
+// finalizing items, an incremented total would double-count whenever two
+// devices finalized the same item.
 export function watchGroupTotals(festId, cb) {
-  return onSnapshot(collection(db, "fests", festId, "groupTotals"), (snap) =>
-    cb(snap.docs.map((d) => ({ groupId: d.id, ...d.data() }))),
-  );
+  let results = null;
+  let groups = null;
+  const emit = () => {
+    if (results && groups) cb(computeGroupTotals(results, groups));
+  };
+  const unsubResults = onSnapshot(collection(db, "fests", festId, "results"), (snap) => {
+    results = snap.docs.map((d) => d.data());
+    emit();
+  });
+  const unsubGroups = onSnapshot(collection(db, "fests", festId, "groups"), (snap) => {
+    groups = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    emit();
+  });
+  return () => {
+    unsubResults();
+    unsubGroups();
+  };
 }
 export async function addGroup(festId, group) {
   const id = group.id || genId();
@@ -93,11 +110,13 @@ export async function updateStudent(festId, student) {
 export async function deleteStudent(festId, studentId) {
   await deleteDoc(doc(db, "fests", festId, "students", studentId));
 }
-export async function uploadStudentPhoto(_festId, studentId, canvas) {
-  const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.82));
-  const ref = storageRef(storage, `students/${studentId}.jpg`);
-  await uploadBytes(ref, blob, { contentType: "image/jpeg" });
-  return getDownloadURL(ref);
+export async function uploadStudentPhoto(_festId, _studentId, canvas) {
+  // Stored inline on the student document as a data URL rather than in
+  // Cloud Storage, which now requires Firebase's paid Blaze plan. Safe at
+  // this size: js/util.js resizeImageFile caps the image at 480px, giving
+  // ~10-30KB — far inside Firestore's 1MB per-document limit — and it
+  // keeps an institution's project entirely on the no-cost Spark plan.
+  return canvas.toDataURL("image/jpeg", 0.82);
 }
 
 // --- Items ------------------------------------------------------------------
@@ -145,14 +164,27 @@ export async function addJudge(festId, judge) {
   const id = judge.id || genId();
   await setDoc(doc(db, "fests", festId, "judges", id), { ...judge, id, assignedItemIds: [] });
 }
-export async function assignJudgeToItems(judgeId, itemIds) {
-  // Server-side: updates the judge's assignedItemIds AND their Firebase
-  // Auth custom claims (assignedItems), which is what firestore.rules
-  // checks — a client can't set its own custom claims. See
-  // functions/src/index.ts assignJudgeToItems.
-  const { getFunctions, httpsCallable } = await import(`${FIREBASE_SDK_CDN}/firebase-functions.js`);
-  const call = httpsCallable(getFunctions(), "assignJudgeToItems");
-  await call({ judgeId, itemIds });
+/** Admin-only (enforced by firestore.rules). Writes the assignment to the
+ * judge document and mirrors it onto each item's assignedJudgeIds.
+ *
+ * This used to be a Cloud Function, because the rules checked a custom
+ * auth claim and a client cannot set its own claims. Rules now read the
+ * judge document directly instead, so no server is involved — see
+ * firestore.rules and README "Why no Cloud Functions". */
+export async function assignJudgeToItems(festId, judgeId, itemIds) {
+  const batch = writeBatch(db);
+  batch.update(doc(db, "fests", festId, "judges", judgeId), { assignedItemIds: itemIds });
+
+  const itemsSnap = await getDocs(collection(db, "fests", festId, "items"));
+  for (const itemDoc of itemsSnap.docs) {
+    const assigned = new Set(itemDoc.data().assignedJudgeIds || []);
+    const shouldHave = itemIds.includes(itemDoc.id);
+    if (shouldHave === assigned.has(judgeId)) continue; // already correct
+    if (shouldHave) assigned.add(judgeId);
+    else assigned.delete(judgeId);
+    batch.update(itemDoc.ref, { assignedJudgeIds: [...assigned] });
+  }
+  await batch.commit();
 }
 
 // --- Scores -----------------------------------------------------------------
@@ -170,6 +202,59 @@ export async function submitScore(score) {
   // docs/ARCHITECTURE.md §4-5.
   const id = `${score.registrationId}_${score.judgeId}`;
   await setDoc(doc(db, "scores", id), { ...score, id, submittedAt: serverTimestamp() });
+  await maybeFinalizeItem(score.festId, score.itemId);
+}
+
+/** Computes and writes an item's result once every assigned judge has
+ * scored every participant — the client-side equivalent of what used to be
+ * the onScoreWrite Cloud Function.
+ *
+ * Being client-side means the judge who submits the final score writes the
+ * result. Rules restrict that write to admins and assigned judges, and
+ * only an admin can publish; they cannot verify the arithmetic itself.
+ * That's an accepted trade for staying on the no-cost plan — see README
+ * "Why no Cloud Functions". Recomputation is naturally idempotent: the
+ * result document is derived wholly from scores, so two devices finishing
+ * at once write the same content. */
+async function maybeFinalizeItem(festId, itemId) {
+  const itemSnap = await getDoc(doc(db, "fests", festId, "items", itemId));
+  if (!itemSnap.exists()) return;
+  const item = itemSnap.data();
+  const assignedJudgeIds = item.assignedJudgeIds || [];
+  if (assignedJudgeIds.length === 0) return;
+
+  const [regsSnap, scoresSnap] = await Promise.all([
+    getDocs(query(collection(db, "registrations"), where("itemId", "==", itemId))),
+    getDocs(query(collection(db, "scores"), where("itemId", "==", itemId))),
+  ]);
+
+  const registrations = regsSnap.docs
+    .map((d) => ({ id: d.id, ...d.data() }))
+    .filter((r) => r.status !== "withdrawn");
+  if (registrations.length === 0) return;
+
+  const marksByReg = new Map();
+  for (const s of scoresSnap.docs.map((d) => d.data())) {
+    const list = marksByReg.get(s.registrationId) || [];
+    list.push(s.totalMarks);
+    marksByReg.set(s.registrationId, list);
+  }
+  if (!isFullyScored(registrations, marksByReg, assignedJudgeIds.length)) return;
+
+  const rankings = computeRankings(registrations, marksByReg, item.maxScore || 10);
+  const resultRef = doc(db, "fests", festId, "results", itemId);
+  const existing = await getDoc(resultRef);
+
+  await setDoc(resultRef, {
+    itemId,
+    itemName: item.name,
+    rankings,
+    finalizedAt: serverTimestamp(),
+    // Never unpublish on recompute — a judge resubmitting after an admin
+    // published shouldn't pull the result back off the public screen.
+    published: Boolean(existing.exists() && existing.data().published),
+  });
+  await updateDoc(doc(db, "fests", festId, "items", itemId), { status: "completed" });
 }
 
 // --- Results ----------------------------------------------------------------

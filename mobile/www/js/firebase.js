@@ -8,24 +8,31 @@
 // would throw before this module's own code runs, breaking the whole app
 // with a blank screen. Dynamic import lets us catch that.
 //
-// Two distinct "not using real Firebase" states are tracked separately:
-//  - isLocalMode(): firebase-config.js still has the placeholder apiKey —
-//    intentional, not an error. The app runs fully against
-//    js/data-local.js / js/auth-local.js (localStorage) instead. See
-//    js/data.js and js/auth.js for the dispatch.
+// Only Auth and Firestore are loaded. Cloud Storage and Cloud Functions
+// both require Firebase's paid Blaze plan, so this app deliberately uses
+// neither: student photos are stored inline on their document (they're a
+// few KB after js/util.js resizeImageFile), and result computation runs on
+// the client via js/scoring.js. That keeps an institution's project
+// entirely within the no-cost Spark plan — see README.
+//
+// Three distinct states are tracked separately:
+//  - needsSetup(): no project configured and none baked into the build —
+//    the app shows views/setup.js so an admin can paste one.
+//  - isLocalMode(): running against localStorage instead of Firestore
+//    (js/data-local.js / js/auth-local.js). Intentional, not an error.
 //  - hasFirebaseError(): a real config was provided but initializing it
 //    failed (bad project, offline, CDN blocked) — this *is* an error, shown
 //    via views/not-configured.js rather than silently falling back to local
-//    mode, so a real misconfiguration doesn't masquerade as "it's working,
-//    just local."
-import { firebaseConfig } from "./firebase-config.js";
+//    mode, so a real misconfiguration doesn't masquerade as "it's working."
+import { getFirebaseConfig } from "./app-config.js";
 
 const SDK_VERSION = "10.12.2";
 const CDN = `https://www.gstatic.com/firebasejs/${SDK_VERSION}`;
 
+const LOCAL_MODE_KEY = "madrasaFestLocalMode";
+
 export let auth = null;
 export let db = null;
-export let storage = null;
 export let initError = null;
 
 export let onAuthStateChanged;
@@ -34,6 +41,8 @@ export let signInAnonymously;
 export let fbSignOut;
 export let collection;
 export let doc;
+export let getDoc;
+export let getDocs;
 export let setDoc;
 export let updateDoc;
 export let deleteDoc;
@@ -42,16 +51,30 @@ export let query;
 export let where;
 export let orderBy;
 export let serverTimestamp;
-export let storageRef;
-export let uploadBytes;
-export let getDownloadURL;
+export let writeBatch;
 
+/** Local Test Mode is an explicit choice (the setup screen's "Try it
+ * without a project" button), not merely the absence of a config — so a
+ * device that failed to receive its config doesn't silently start writing
+ * to localStorage as if all were well. */
 export function isLocalMode() {
-  return firebaseConfig.apiKey === "TODO";
+  return localStorage.getItem(LOCAL_MODE_KEY) === "true";
+}
+
+export function enableLocalMode() {
+  localStorage.setItem(LOCAL_MODE_KEY, "true");
+}
+
+export function disableLocalMode() {
+  localStorage.removeItem(LOCAL_MODE_KEY);
+}
+
+export function needsSetup() {
+  return !isLocalMode() && getFirebaseConfig() === null;
 }
 
 export function hasFirebaseError() {
-  return !isLocalMode() && initError !== null;
+  return !isLocalMode() && !needsSetup() && initError !== null;
 }
 
 export function isFirebaseReady() {
@@ -59,24 +82,34 @@ export function isFirebaseReady() {
 }
 
 async function init() {
-  if (isLocalMode()) return; // intentional — see isLocalMode() doc above
+  if (isLocalMode() || needsSetup()) return; // both intentional — see doc above
   try {
-    const [{ initializeApp }, authMod, firestoreMod, storageMod] = await Promise.all([
+    const [{ initializeApp }, authMod, firestoreMod] = await Promise.all([
       import(`${CDN}/firebase-app.js`),
       import(`${CDN}/firebase-auth.js`),
       import(`${CDN}/firebase-firestore.js`),
-      import(`${CDN}/firebase-storage.js`),
     ]);
 
-    const app = initializeApp(firebaseConfig);
+    const app = initializeApp(getFirebaseConfig());
     auth = authMod.getAuth(app);
     db = firestoreMod.getFirestore(app);
-    storage = storageMod.getStorage(app);
 
     ({ onAuthStateChanged, signInWithEmailAndPassword, signInAnonymously, signOut: fbSignOut } = authMod);
-    ({ collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot, query, where, orderBy, serverTimestamp } =
-      firestoreMod);
-    ({ ref: storageRef, uploadBytes, getDownloadURL } = storageMod);
+    ({
+      collection,
+      doc,
+      getDoc,
+      getDocs,
+      setDoc,
+      updateDoc,
+      deleteDoc,
+      onSnapshot,
+      query,
+      where,
+      orderBy,
+      serverTimestamp,
+      writeBatch,
+    } = firestoreMod);
   } catch (err) {
     initError = err;
   }

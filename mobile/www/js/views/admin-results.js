@@ -1,6 +1,6 @@
 import { el, mount, initials } from "../util.js";
 import { watchAllResults, publishResult } from "../data.js";
-import { FEST_ID } from "../firebase-config.js";
+import { FEST_ID } from "../app-config.js";
 import { navigate } from "../router.js";
 
 const MEDALS = { 1: "🥇", 2: "🥈", 3: "🥉" };

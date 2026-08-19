@@ -1,6 +1,6 @@
 import { el, mount, genId, toast } from "../util.js";
 import { watchJudges, watchItems, addJudge, assignJudgeToItems } from "../data.js";
-import { FEST_ID } from "../firebase-config.js";
+import { FEST_ID } from "../app-config.js";
 
 export async function renderAdminJudges() {
   let items = [];
@@ -69,7 +69,7 @@ export async function renderAdminJudges() {
                 onchange: (e) => {
                   const updated = new Set(assigned);
                   e.target.checked ? updated.add(item.id) : updated.delete(item.id);
-                  assignJudgeToItems(judge.id, [...updated]).catch(() =>
+                  assignJudgeToItems(FEST_ID, judge.id, [...updated]).catch(() =>
                     toast("Couldn't update assignment — is Cloud Functions deployed?"),
                   );
                 },

@@ -8,7 +8,7 @@ import {
   registerStudent,
   withdrawRegistration,
 } from "../data.js";
-import { FEST_ID } from "../firebase-config.js";
+import { FEST_ID } from "../app-config.js";
 
 export async function renderAdminRegistrations() {
   let categories = [];

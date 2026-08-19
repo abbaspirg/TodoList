@@ -1,6 +1,6 @@
 import { el, mount, initials, toast } from "../util.js";
 import { getFestSettings } from "../data.js";
-import { FEST_ID } from "../firebase-config.js";
+import { FEST_ID } from "../app-config.js";
 import { isDark as isAppDark } from "../theme.js";
 
 const MEDALS = { 1: "🥇", 2: "🥈", 3: "🥉" };

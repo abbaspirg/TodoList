@@ -1,6 +1,6 @@
 import { el, mount, toast } from "../util.js";
 import { watchFestSettings, updateFestSettings } from "../data.js";
-import { FEST_ID } from "../firebase-config.js";
+import { FEST_ID } from "../app-config.js";
 
 export async function renderAdminSettings() {
   const nameInput = el("input", { type: "text", placeholder: "e.g. Darul Uloom Islamic Academy" });

@@ -1,6 +1,6 @@
 import { el, mount } from "../util.js";
 import { watchJudges, watchItems } from "../data.js";
-import { FEST_ID } from "../firebase-config.js";
+import { FEST_ID } from "../app-config.js";
 import { navigate } from "../router.js";
 import { signOut, currentUserId } from "../auth.js";
 

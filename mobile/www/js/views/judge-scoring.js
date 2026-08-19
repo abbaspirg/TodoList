@@ -1,6 +1,6 @@
 import { el, mount } from "../util.js";
 import { watchItem, watchRegistrations, watchScoresByJudge, submitScore } from "../data.js";
-import { FEST_ID } from "../firebase-config.js";
+import { FEST_ID } from "../app-config.js";
 import { currentUserId } from "../auth.js";
 
 const DEFAULT_MAX_SCORE = 10;
@@ -62,7 +62,7 @@ function renderParticipantCard(reg, maxScore, existingScore, judgeId, itemId) {
         submitBtn.disabled = true;
         submitBtn.textContent = "Submitting…";
         try {
-          await submitScore({ itemId, registrationId: reg.id, judgeId, totalMarks: mark, maxScore });
+          await submitScore({ festId: FEST_ID, itemId, registrationId: reg.id, judgeId, totalMarks: mark, maxScore });
         } finally {
           submitBtn.textContent = "Submitted";
         }

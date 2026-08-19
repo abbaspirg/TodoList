@@ -1,6 +1,6 @@
 import { el, mount } from "../util.js";
 import { watchGroupTotals } from "../data.js";
-import { FEST_ID } from "../firebase-config.js";
+import { FEST_ID } from "../app-config.js";
 import { navigate } from "../router.js";
 
 export async function renderPublicLeaderboard() {

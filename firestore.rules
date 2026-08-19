@@ -1,10 +1,26 @@
 rules_version = '2';
 
-// Mirrors the access model described in docs/ARCHITECTURE.md §4.
-// - Admin: full read/write on management collections.
-// - Judge: create-only scores for items they're assigned to, while the item
-//   is `ongoing`; cannot update/delete a submitted score.
-// - Public: read-only on `results` (published only) and `groupTotals`.
+// Access model for the Madrasa Meelad Fest Manager — see
+// docs/ARCHITECTURE.md §4.
+//
+// Roles live in `roles/{uid}` documents, NOT in custom auth claims:
+// claims can only be set by the Admin SDK (a server), and Cloud Functions
+// require Firebase's paid Blaze plan. This app is designed to run entirely
+// on the no-cost Spark plan, so rules read the role document instead.
+//
+//   roles/{uid} = { role: "admin" }
+//   roles/{uid} = { role: "judge", judgeId: "<judges/ doc id>" }
+//
+// `roles` is not writable by anyone through the app — an institution's
+// owner creates these documents by hand in the Firebase console. That is
+// what makes it safe to trust as the source of authority.
+//
+// Known limitation: with no server, results are computed and written by
+// the client that submits the final score. These rules restrict WHO may
+// write a result and WHAT SHAPE it takes, but cannot verify the marks were
+// averaged correctly — an assigned judge could write a dishonest result.
+// Publishing stays admin-only, so nothing reaches the public screen
+// without an admin's action. See README "Why no Cloud Functions".
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -12,20 +28,38 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function role() {
-      return isSignedIn() ? request.auth.token.role : null;
+    function roleDoc() {
+      return get(/databases/$(database)/documents/roles/$(request.auth.uid)).data;
+    }
+
+    function hasRoleDoc() {
+      return isSignedIn() && exists(/databases/$(database)/documents/roles/$(request.auth.uid));
     }
 
     function isAdmin() {
-      return role() == 'admin';
+      return hasRoleDoc() && roleDoc().role == 'admin';
     }
 
     function isJudge() {
-      return role() == 'judge';
+      return hasRoleDoc() && roleDoc().role == 'judge';
     }
 
-    function assignedItems() {
-      return isJudge() ? request.auth.token.assignedItems : [];
+    function myJudgeId() {
+      return roleDoc().judgeId;
+    }
+
+    // Whether this judge is assigned to the item they're writing about.
+    // Replaces the old `assignedItems` custom claim by reading the judge's
+    // own document, which only an admin can write.
+    function isAssignedTo(festId, itemId) {
+      return isJudge()
+        && itemId in get(/databases/$(database)/documents/fests/$(festId)/judges/$(myJudgeId())).data.assignedItemIds;
+    }
+
+    // Set once by hand in the Firebase console; never writable from the app.
+    match /roles/{uid} {
+      allow read: if isSignedIn() && request.auth.uid == uid;
+      allow write: if false;
     }
 
     match /fests/{festId} {
@@ -37,16 +71,12 @@ service cloud.firestore {
         allow write: if isAdmin();
       }
 
-      match /groupTotals/{groupId} {
-        allow read: if true;
-        allow write: if false; // Cloud Functions only (service account bypasses rules).
-      }
-
       match /categories/{categoryId} {
         allow read: if true;
         allow write: if isAdmin();
       }
 
+      // Students carry names, class and photos of minors — never public.
       match /students/{studentId} {
         allow read: if isAdmin() || isJudge();
         allow write: if isAdmin();
@@ -54,17 +84,30 @@ service cloud.firestore {
 
       match /items/{itemId} {
         allow read: if true;
+        // Judges may only touch assignedJudgeIds/status on items they're
+        // assigned to (finalizing sets status to 'completed'); everything
+        // else about an item is the admin's.
         allow write: if isAdmin();
+        allow update: if isAssignedTo(festId, itemId)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']);
       }
 
       match /judges/{judgeId} {
-        allow read: if isAdmin();
+        allow read: if isAdmin() || (isJudge() && judgeId == myJudgeId());
         allow write: if isAdmin();
       }
 
+      // Written by whoever submits the last score for an item (admin or an
+      // assigned judge). `published` is admin-only in both directions, so a
+      // judge can neither publish nor unpublish.
       match /results/{itemId} {
-        allow read: if isAdmin() || (resource.data.published == true);
-        allow write: if false; // Cloud Functions only.
+        allow read: if isAdmin() || isJudge() || resource.data.published == true;
+        allow create: if isAdmin()
+          || (isAssignedTo(festId, itemId) && request.resource.data.published == false);
+        allow update: if isAdmin()
+          || (isAssignedTo(festId, itemId)
+              && request.resource.data.published == resource.data.published);
+        allow delete: if isAdmin();
       }
 
       match /posters/{posterId} {
@@ -74,20 +117,21 @@ service cloud.firestore {
     }
 
     // Flat top-level (not nested under fests/{festId}) — matches how the
-    // client queries them (filtered by an itemId field), and keeps the
-    // judge-scoped rule below simple.
+    // client queries them (filtered by an itemId field).
     match /registrations/{registrationId} {
       allow read: if true;
       allow write: if isAdmin();
     }
 
     match /scores/{scoreId} {
-      allow read: if isAdmin() ||
-        (isJudge() && resource.data.judgeId == request.auth.uid);
+      allow read: if isAdmin() || (isJudge() && resource.data.judgeId == myJudgeId());
+      // Append-only: a judge writes their own mark once and can't revise it
+      // after seeing anyone else's. The festId on the document is what lets
+      // the assignment check above find the right judges/ collection.
       allow create: if isJudge()
-        && request.resource.data.judgeId == request.auth.uid
-        && request.resource.data.itemId in assignedItems();
-      allow update, delete: if false; // append-only — see ARCHITECTURE.md §4.
+        && request.resource.data.judgeId == myJudgeId()
+        && isAssignedTo(request.resource.data.festId, request.resource.data.itemId);
+      allow update, delete: if false;
     }
   }
 }

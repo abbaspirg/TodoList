@@ -1,11 +1,12 @@
 import { route, notFound, navigate, startRouter } from "./router.js";
 import { watchAuthState, currentRole, signOut } from "./auth.js";
-import { hasFirebaseError, whenFirebaseReady } from "./firebase.js";
+import { hasFirebaseError, needsSetup, whenFirebaseReady } from "./firebase.js";
 import { el, toast } from "./util.js";
 import { isDark, toggleTheme } from "./theme.js";
 
 import { renderLogin } from "./views/login.js";
 import { renderNotConfigured } from "./views/not-configured.js";
+import { renderSetup } from "./views/setup.js";
 import { renderAdminDashboard } from "./views/admin-dashboard.js";
 import { renderAdminStudents } from "./views/admin-students.js";
 import { renderAdminGroups } from "./views/admin-groups.js";
@@ -30,6 +31,12 @@ let role = null;
 // against js/data-local.js, no gate needed for that case.
 function page(requiredRole, renderFn) {
   return async (params) => {
+    // No project configured yet and none baked into this build — every
+    // route funnels to setup until one is chosen (or Local Test Mode is).
+    if (needsSetup()) {
+      renderSetup();
+      return;
+    }
     if (hasFirebaseError()) {
       renderNotConfigured();
       return;
@@ -43,6 +50,10 @@ function page(requiredRole, renderFn) {
 }
 
 route("/login", async () => {
+  if (needsSetup()) {
+    renderSetup();
+    return;
+  }
   if (hasFirebaseError()) {
     renderNotConfigured();
     return;
@@ -158,13 +169,20 @@ if (CapApp) {
 // --- Boot ---------------------------------------------------------------
 async function boot() {
   await whenFirebaseReady();
-  watchAuthState(async (user) => {
-    signedIn = Boolean(user);
-    role = signedIn ? await currentRole() : null;
-    renderNav();
-    // Re-run the current route now that auth/role state is known.
-    window.dispatchEvent(new HashChangeEvent("hashchange"));
-  });
+  // Only watch auth when the SDK actually loaded. It won't have if no
+  // project is configured (setup screen shows instead) or if init failed —
+  // a blocked CDN or a device that's offline on first launch, which shows
+  // views/not-configured.js. Calling watchAuthState in either case would
+  // hit an undefined onAuthStateChanged and blank the whole app.
+  if (!needsSetup() && !hasFirebaseError()) {
+    watchAuthState(async (user) => {
+      signedIn = Boolean(user);
+      role = signedIn ? await currentRole() : null;
+      renderNav();
+      // Re-run the current route now that auth/role state is known.
+      window.dispatchEvent(new HashChangeEvent("hashchange"));
+    });
+  }
   startRouter();
   updateBackButton();
 }
