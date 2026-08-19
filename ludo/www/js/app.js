@@ -14,6 +14,7 @@ import {
   startGame,
   rollForTurn,
   moveToken,
+  skipTurn,
   playAgain,
   leaveRoom,
 } from "./rooms.js";
@@ -31,6 +32,7 @@ import {
   watchLocalRoom,
   localRoll,
   localMove,
+  localSkip,
   localPlayAgain,
   endLocalGame,
   currentLocalUid,
@@ -274,6 +276,7 @@ function rerender() {
     onMove: handleMove,
     onPlayAgain: handlePlayAgain,
     onThrowEmote: handleThrowEmote,
+    onSkipTurn: handleSkipTurn,
   });
   maybeAnimateDie(room.game);
   announceTurnChange(room, myUid, previousTurn, localMode);
@@ -314,6 +317,19 @@ async function handleThrowEmote(emoji) {
     await throwEmote(roomCode, emoji, nameOfMe());
   } catch {
     // A failed throw is not worth interrupting a game over.
+  }
+}
+
+async function handleSkipTurn() {
+  if (localMode) return localSkip();
+  try {
+    await skipTurn(roomCode);
+  } catch (err) {
+    toast(
+      err?.code === "permission-denied"
+        ? "Only the host can skip a turn this soon — try again in a moment."
+        : err?.message || "Couldn't skip that turn.",
+    );
   }
 }
 

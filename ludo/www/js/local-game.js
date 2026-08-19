@@ -7,7 +7,7 @@
 // (code, players, seatByUid, game) and the same watch/act functions, so the
 // board, the renderer and the whole game screen are the online ones,
 // unmodified. The only thing that changes is where the state lives.
-import { createGame, applyRoll, applyMove, rollDice, MIN_SEATS, MAX_SEATS } from "./game.js";
+import { createGame, applyRoll, applyMove, passTurn, rollDice, MIN_SEATS, MAX_SEATS } from "./game.js";
 
 const STORAGE_KEY = "ludoLocalGame";
 
@@ -109,6 +109,14 @@ export function localMove(tokenIndex) {
   if (!room?.game || room.status !== "playing") return;
   const game = applyMove(room.game, tokenIndex);
   update({ ...room, game, status: game.status === "finished" ? "finished" : "playing" });
+}
+
+/** Rarely needed on one phone, but the control is shared with online play
+ * and someone stepping out mid-game should not end it. */
+export function localSkip() {
+  if (!room?.game || room.status !== "playing") return;
+  const name = room.players.find((p) => p.seat === room.game.turn)?.name || null;
+  update({ ...room, game: passTurn(room.game, name) });
 }
 
 export function localPlayAgain() {

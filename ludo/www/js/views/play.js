@@ -25,13 +25,32 @@ let animating = false;
 // stale controls over a fresh board, which deadlocked the game: the die
 // showed one turn and the board another, so nobody could act.
 let currentContext = null;
+// When the board last changed hands. A turn that has not moved on for a
+// long time means the player is gone, not thinking — that is when the
+// escape hatch appears.
+let turnKey = null;
+let turnSince = 0;
+let idleTimer = null;
+const STALL_MS = 25000;
 
 export function resetPlayView() {
   cancelAnimation();
+  clearTimeout(idleTimer);
   shownBoard = null;
   animating = false;
   currentContext = null;
+  turnKey = null;
   generation++;
+}
+
+/** Repaints just the controls from the current room — used when the stall
+ * timer fires and the escape hatch needs to appear. */
+function refreshChrome() {
+  if (!currentContext) return;
+  renderChrome(currentContext, {
+    mySeat: currentContext.room.seatByUid[currentContext.myUid],
+    animating: false,
+  });
 }
 
 /** Paints the whole game screen from the room document. Called on every
@@ -140,12 +159,28 @@ function renderChrome(context, { mySeat, animating: isWalking }) {
     onLeave,
     onToggleVoice,
     onThrowEmote,
+    onSkipTurn,
   } = context;
   const game = room.game;
   const isMyTurn = game.turn === mySeat && room.status === "playing";
   const canRoll = isMyTurn && game.dice === null && !isWalking;
   const movable = isMyTurn && game.dice !== null ? legalMoves(game) : [];
   const nameFor = (seat) => room.players.find((p) => p.seat === seat)?.name || `Seat ${seat + 1}`;
+
+  // --- Stall detection ------------------------------------------------
+  const key = `${game.turn}-${game.dice}-${room.status}-${JSON.stringify(game.tokens)}`;
+  if (key !== turnKey) {
+    turnKey = key;
+    turnSince = Date.now();
+  }
+  const stalledFor = Date.now() - turnSince;
+  const stalled = room.status === "playing" && !isMyTurn && stalledFor >= STALL_MS;
+  clearTimeout(idleTimer);
+  if (room.status === "playing" && !isMyTurn && !stalled) {
+    // Come back and re-check exactly when the wait becomes a stall, so the
+    // button appears without anyone having to touch the screen.
+    idleTimer = setTimeout(refreshChrome, STALL_MS - stalledFor + 250);
+  }
 
   tapHandler = (hit) => {
     if (isWalking || animating) return;
@@ -163,6 +198,7 @@ function renderChrome(context, { mySeat, animating: isWalking }) {
   const statusHost = document.getElementById("gameStatus");
   const turnColor = colorForSeat(game, game.turn);
   statusHost.replaceChildren(
+    ...[
     el("span", { class: "seat-dot", style: `--seat-color:${turnColor.hex}` }, String(game.turn + 1)),
     el(
       "span",
@@ -197,35 +233,70 @@ function renderChrome(context, { mySeat, animating: isWalking }) {
           },
           voice?.isActive?.() && voice.isMuted() ? "🔇" : "🎙",
         ),
+    ].filter(Boolean),
   );
 
   // --- Controls ------------------------------------------------------
   const controls = document.getElementById("gameControls");
+  const explainDie = () => {
+    if (room.status === "finished") return toast("The game is over — tap Play again.");
+    if (!isMyTurn) return toast(`Waiting for ${nameFor(game.turn)} to roll.`);
+    if (game.dice !== null) {
+      return toast(movable.length ? "You've rolled — now tap a token." : "No move available.");
+    }
+    if (isWalking) return; // a piece is mid-hop; the tap will work in a moment
+  };
   const die = el(
     "button",
     {
       id: "die",
-      class: `die${canRoll ? " rollable" : ""}`,
-      disabled: !canRoll || undefined,
-      title: canRoll ? "Roll the die" : "Not your turn",
-      onclick: onRoll,
+      class: `die${canRoll ? " rollable" : " waiting"}`,
+      // Deliberately NOT the disabled attribute. A dead button that does
+      // nothing when tapped is indistinguishable from a broken one, which
+      // is exactly how this was reported. It stays tappable and explains.
+      "aria-disabled": canRoll ? undefined : "true",
+      title: canRoll ? "Roll the die" : `${nameFor(game.turn)}'s turn`,
+      onclick: canRoll ? onRoll : explainDie,
     },
     DIE_FACES[game.dice ?? 0],
   );
 
+  const mainAction = () => {
+    if (room.status === "finished") {
+      return el("button", { class: "btn glow", onclick: onPlayAgain }, "Play again");
+    }
+    if (canRoll) return el("button", { class: "btn glow", onclick: onRoll }, "ROLL");
+    if (stalled) {
+      // The escape hatch. Without it, one locked phone ends the game for
+      // everyone: only the player on turn may act, so if they never do,
+      // nobody can.
+      return el(
+        "button",
+        {
+          class: "btn danger",
+          onclick: () => {
+            if (confirm(`${nameFor(game.turn)} hasn't played. Skip their turn?`)) onSkipTurn();
+          },
+        },
+        `Skip ${nameFor(game.turn)}`,
+      );
+    }
+    return el(
+      "button",
+      { class: "btn secondary", "aria-disabled": "true", onclick: explainDie },
+      isMyTurn ? "Move a token" : `Waiting for ${nameFor(game.turn)}…`,
+    );
+  };
+
   controls.replaceChildren(
-    die,
-    room.status === "finished"
-      ? el("button", { class: "btn glow", onclick: onPlayAgain }, "Play again")
-      : el(
-          "button",
-          { class: `btn${canRoll ? " glow" : " secondary"}`, disabled: !canRoll || undefined, onclick: onRoll },
-          canRoll ? "ROLL" : isMyTurn ? "Move a token" : "Waiting…",
-        ),
-    passAndPlay
-      ? null
-      : el("button", { class: "icon-btn", title: "Throw an emoji", onclick: () => toggleTray(onThrowEmote) }, "😀"),
-    el("button", { class: "icon-btn", title: passAndPlay ? "Back to menu" : "Leave game", onclick: onLeave }, "✕"),
+    ...[
+      die,
+      mainAction(),
+      passAndPlay
+        ? null
+        : el("button", { class: "icon-btn", title: "Throw an emoji", onclick: () => toggleTray(onThrowEmote) }, "😀"),
+      el("button", { class: "icon-btn", title: passAndPlay ? "Back to menu" : "Leave game", onclick: onLeave }, "✕"),
+    ].filter(Boolean),
   );
 
   // --- Players -------------------------------------------------------
@@ -255,11 +326,6 @@ function renderChrome(context, { mySeat, animating: isWalking }) {
         );
       }),
   );
-
-  // --- Move history --------------------------------------------------
-  document
-    .getElementById("moveLog")
-    .replaceChildren(...[...game.log].reverse().map((entry) => el("li", {}, humanise(entry.message, nameFor))));
 }
 
 /** The die is animated only when a NEW roll arrives, so a redraw for some
@@ -319,12 +385,6 @@ function toggleTray(onThrowEmote) {
 export function showEmote(emoji, fromName) {
   sounds.emote();
   flyEmote(emoji, fromName);
-}
-
-/** The engine logs in terms of seat numbers, since it knows nothing about
- * players; the screen shows names. */
-function humanise(message, nameFor) {
-  return message.replace(/[Ss]eat (\d+)/g, (_, n) => nameFor(Number(n)));
 }
 
 export function announceTurnChange(room, myUid, previousTurn, passAndPlay = false) {

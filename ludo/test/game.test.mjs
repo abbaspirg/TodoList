@@ -16,6 +16,7 @@ import {
   startSquare,
   nextActiveSeat,
   seatProgress,
+  passTurn,
   YARD,
   MAX_SEATS,
   MIN_SEATS,
@@ -356,6 +357,52 @@ check("a finished game accepts no further rolls or moves", () => {
   const finished = { ...createGame(4), status: "finished" };
   eq(applyRoll(finished, 6), finished, "roll on a finished game");
   eq(applyMove({ ...finished, dice: 6 }, 0).tokens, finished.tokens, "move on a finished game");
+});
+
+// --- Skipping an absent player ---------------------------------------------
+
+check("a turn can be passed on without a roll", () => {
+  const g = createGame(4);
+  const after = passTurn(g);
+  eq(after.turn, 1, "turn moves on");
+  eq(after.dice, null, "no dice left set");
+});
+
+check("skipping doesn't touch the board", () => {
+  const g = createGame(4);
+  g.tokens[0][0] = 7;
+  const before = JSON.stringify(g.tokens);
+  eq(JSON.stringify(passTurn(g).tokens), before, "tokens must be untouched");
+});
+
+check("skipping clears a roll the absent player never played", () => {
+  // The stuck case that matters: they rolled, then vanished before moving.
+  let g = createGame(4);
+  g.tokens[0][0] = 5;
+  g = applyRoll(g, 3);
+  eq(g.dice, 3, "rolled");
+  const after = passTurn(g);
+  eq(after.dice, null, "dice cleared");
+  eq(after.turn, 1, "turn moves on");
+});
+
+check("skipping resets a six streak, so it can't be used to dodge the rule", () => {
+  let g = createGame(4);
+  g.tokens[0][0] = 5;
+  g = applyRoll(g, 6);
+  g = applyMove(g, 0);
+  eq(g.sixStreak, 1, "streak after a six");
+  eq(passTurn(g).sixStreak, 0, "streak cleared by a skip");
+});
+
+check("skipping passes over players who have already finished", () => {
+  const g = { ...createGame(4), finished: [1, 2] };
+  eq(passTurn(g).turn, 3, "skips finished seats");
+});
+
+check("a finished game cannot be skipped", () => {
+  const finished = { ...createGame(4), status: "finished" };
+  eq(passTurn(finished), finished, "state unchanged");
 });
 
 // --- Integrity -------------------------------------------------------------

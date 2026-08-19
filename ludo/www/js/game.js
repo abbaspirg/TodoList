@@ -7,15 +7,14 @@
 // single atomic write and every device converges on the same board without
 // any merge logic.
 //
-// ## Why the board is generated rather than drawn
+// ## Two board shapes
 //
-// Ludo is a four-player game: the classic cross-shaped board has exactly
-// four arms. Seven players do not fit on it. Rather than hand-draw a
-// seven-armed board, the geometry is derived from the player count — a ring
-// of squares with one arm per player — so 2 through 8 players all work from
-// one implementation. At four players the numbers come out exactly like
-// classic Ludo (52 track squares, starts 13 apart); it simply renders as a
-// ring instead of a cross.
+// Ludo is a four-player game: the classic cross has exactly four arms, and
+// seven players do not fit on it. So two to four players get the real
+// 52-cell cross board, and five to eight get a polygon with one arm each —
+// the shape a physical seven-player set uses. Both are the same structure
+// (a lane out, a tip, a lane back, home column up the middle), differing
+// only in lane length. See boardConfig below.
 
 /** Squares in a player's home column, the last of which is the centre. A
  * token needs an exact roll to land on it. */
@@ -27,10 +26,10 @@ export const MAX_SEATS = 8;
 /** Token positions are stored relative to that player's own start square,
  * which is what makes one set of rules work for every seat:
  *
- *   -1                          in the yard, not yet on the board
- *   0 .. trackLen-1             on the shared ring, `pos` steps from own start
- *   trackLen .. trackLen+4      in own home column
- *   trackLen+5 (HOME_LEN-1)     the centre — finished
+ *   -1                            in the yard, not yet on the board
+ *   0 .. trackLen-1               on the shared track, `pos` steps from own start
+ *   trackLen .. trackLen+homeLen-2  in own home column
+ *   trackLen+homeLen-1            the centre — finished
  */
 export const YARD = -1;
 
@@ -296,6 +295,16 @@ export function applyMove(state, tokenIndex) {
     return { ...next, turn: seat };
   }
   return endTurn(next, null);
+}
+
+/** Moves play on without a roll.
+ *
+ * Recovery, not a rule: a player whose phone locked, who lost signal or who
+ * simply walked off stops the game dead for everyone else, because only the
+ * player on turn may act. This is the way out. */
+export function passTurn(state, playerName = null) {
+  if (state.status !== "playing") return state;
+  return endTurn(state, `${playerName ? playerName : `Seat ${state.turn}`}'s turn was skipped`);
 }
 
 function endTurn(state, message) {

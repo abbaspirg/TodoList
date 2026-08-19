@@ -143,6 +143,22 @@ or a hosted provider's free tier.
 Add one per device under **Settings → Voice relay**, or bake one into a
 build with the `TURN_URLS` / `TURN_USERNAME` / `TURN_CREDENTIAL` variables.
 
+## When someone's phone locks
+
+Only the player on turn may write the board — that is what stops anyone
+moving your pieces. It also means one locked phone, one lost signal or one
+person wandering off used to stop the game dead for everybody, with no way
+out. So:
+
+- The die is never a dead button. Tapping it when you can't roll says why —
+  "Waiting for Ayesha to roll", "You've rolled, now tap a token".
+- After 25 seconds with nothing happening, everyone else gets a **Skip
+  <name>** button. It moves play on without touching the board.
+
+`firestore.rules` backs this up: the host can always act, and once a room
+has sat untouched for 15 seconds *any* player may — so the game can be
+rescued even when the host is the one who vanished.
+
 ## What the security rules can and cannot enforce
 
 `firestore.rules` enforces that only players in a room can touch it, and

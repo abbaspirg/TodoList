@@ -54,6 +54,16 @@ service cloud.firestore {
         && request.resource.data.status == 'lobby'
         && inRoomAfter();
 
+      // A game where nobody has acted for this long is stuck, not in
+      // progress — the player on turn has locked their phone, lost signal
+      // or walked off. Any player may then move play on. Kept well above
+      // any normal pause for thought, and the app only offers the button
+      // after longer still, so a legitimate turn is never taken away.
+      function roomIsStalled() {
+        return resource.data.updatedAt is timestamp
+          && request.time > resource.data.updatedAt + duration.value(15, 's');
+      }
+
       allow update: if isSignedIn() && (
         // Joining a lobby, or changing one you are already in. Requiring
         // membership on one side or the other is what stops a signed-in
@@ -68,6 +78,9 @@ service cloud.firestore {
         // The host can always write: somebody has to be able to remove a
         // player who has gone offline mid-game, or restart a stuck round.
         || resource.data.hostUid == request.auth.uid
+        // ...and if the HOST is the one who vanished, any player can
+        // rescue the game once it has clearly stalled.
+        || (inRoomBefore() && roomIsStalled())
       );
 
       // Leaving a room deletes it when the last player goes.

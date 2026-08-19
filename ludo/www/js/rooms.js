@@ -27,7 +27,7 @@ import {
   where,
   getDocs,
 } from "./firebase.js";
-import { createGame, applyRoll, applyMove, rollDice, MAX_SEATS, MIN_SEATS } from "./game.js";
+import { createGame, applyRoll, applyMove, passTurn, rollDice, MAX_SEATS, MIN_SEATS } from "./game.js";
 
 // No 0/O/1/I/5/S — a room code gets read aloud over the phone or typed from
 // a screenshot, and those are the pairs people get wrong.
@@ -193,6 +193,24 @@ export async function moveToken(code, tokenIndex) {
       status: game.status === "finished" ? "finished" : "playing",
       updatedAt: serverTimestamp(),
     });
+  });
+}
+
+/** Moves play on past a player who has stopped responding.
+ *
+ * Without this a single locked phone ends the game for everyone: only the
+ * player on turn may write the board, so if they never act, nobody can.
+ * The host may always do it; any other player may once the room has been
+ * untouched long enough (firestore.rules enforces the wait, this is just
+ * the client side of it). */
+export async function skipTurn(code) {
+  const ref = roomRef(code);
+  return runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    const room = snap.data();
+    if (!room?.game || room.status !== "playing") return;
+    const name = room.players.find((p) => p.seat === room.game.turn)?.name || null;
+    tx.update(ref, { game: passTurn(room.game, name), updatedAt: serverTimestamp() });
   });
 }
 
