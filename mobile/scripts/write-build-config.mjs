@@ -10,25 +10,21 @@
 import { writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-
-const REQUIRED_KEYS = ["apiKey", "authDomain", "projectId", "appId"];
+// The very same parser the in-app setup screen uses, so whatever an admin
+// can paste into the app also works as the FIREBASE_CONFIG variable —
+// including the console's `const firebaseConfig = { apiKey: ... }` snippet
+// with unquoted keys, which strict JSON.parse rejects.
+import { parseConfigInput } from "../www/js/config-parse.js";
 
 const raw = process.env.FIREBASE_CONFIG || "";
 const institutionName = (process.env.INSTITUTION_NAME || "").trim();
 
 let config;
 try {
-  config = JSON.parse(raw);
+  config = parseConfigInput(raw);
 } catch (err) {
-  console.error("FIREBASE_CONFIG is not valid JSON.");
-  console.error("Paste the config as JSON, e.g. {\"apiKey\":\"...\",\"projectId\":\"...\"}");
-  console.error(String(err.message));
-  process.exit(1);
-}
-
-const missing = REQUIRED_KEYS.filter((k) => typeof config?.[k] !== "string" || config[k].trim() === "");
-if (missing.length > 0) {
-  console.error(`FIREBASE_CONFIG is missing required key(s): ${missing.join(", ")}`);
+  console.error(`FIREBASE_CONFIG could not be read: ${err.message}`);
+  console.error("Accepted: the config object, or the whole snippet from the Firebase console.");
   process.exit(1);
 }
 
