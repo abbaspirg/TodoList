@@ -53,6 +53,7 @@ export const deleteItem = (...args) => impl().deleteItem(...args);
 export const watchRegistrations = (...args) => impl().watchRegistrations(...args);
 export const registerStudent = (...args) => impl().registerStudent(...args);
 export const withdrawRegistration = (...args) => impl().withdrawRegistration(...args);
+export const deleteRegistration = (...args) => impl().deleteRegistration(...args);
 
 export const watchJudges = (...args) => impl().watchJudges(...args);
 export const watchJudge = (...args) => impl().watchJudge(...args);
@@ -71,9 +72,11 @@ export const finalizePendingItems = (...args) => impl().finalizePendingItems(...
 export const unpublishResult = (...args) => impl().unpublishResult(...args);
 export const watchItemScores = (...args) => impl().watchItemScores(...args);
 export const overrideScore = (...args) => impl().overrideScore(...args);
+export const deleteScore = (...args) => impl().deleteScore(...args);
 export const recomputeItemResult = (...args) => impl().recomputeItemResult(...args);
 
 export const watchAttendance = (...args) => impl().watchAttendance(...args);
 export const watchAllAttendance = (...args) => impl().watchAllAttendance(...args);
 export const setAttendance = (...args) => impl().setAttendance(...args);
 export const setAttendanceBulk = (...args) => impl().setAttendanceBulk(...args);
+export const deleteAttendance = (...args) => impl().deleteAttendance(...args);

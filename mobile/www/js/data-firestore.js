@@ -497,6 +497,33 @@ export async function overrideScore(festId, scoreId, totalMarks, itemId) {
   await recomputeResult(festId, itemId);
 }
 
+/** Admin-only: remove a mark outright, for when a judge marked the wrong
+ * participant rather than mis-keyed a number. The item is then short of a
+ * mark again, so recomputeResult withdraws any result it had already
+ * produced and reopens it for scoring — a published standing must never
+ * outlive the marks it was derived from. */
+export async function deleteScore(festId, scoreId, itemId) {
+  await deleteDoc(doc(db, "scores", scoreId));
+  await recomputeResult(festId, itemId);
+}
+
+/** Admin-only: erase a registration and every mark given against it.
+ *
+ * The softer sibling is withdrawRegistration, which leaves the record in
+ * place flagged `withdrawn` — right when a student pulls out on the day and
+ * you want the entry to stay on the books. This is for an entry that should
+ * never have existed at all. */
+export async function deleteRegistration(festId, registrationId, itemId) {
+  const scoresSnap = await getDocs(
+    query(collection(db, "scores"), where("registrationId", "==", registrationId)),
+  );
+  const batch = writeBatch(db);
+  batch.delete(doc(db, "registrations", registrationId));
+  for (const s of scoresSnap.docs) batch.delete(s.ref);
+  await batch.commit();
+  await recomputeResult(festId, itemId);
+}
+
 // --- Attendance ------------------------------------------------------------
 // One document per student per day, id `${date}_${studentId}`, so marking
 // the same student twice overwrites rather than accumulating. `date` is a
@@ -532,6 +559,14 @@ export async function setAttendance(festId, record) {
     id,
     markedAt: serverTimestamp(),
   });
+}
+
+/** Clears a day's mark for one student, putting them back to "not marked"
+ * rather than recording a status. Absent and never-registered are different
+ * facts, and the report counts them differently — so undoing a mistaken tap
+ * has to delete the record, not overwrite it with anything. */
+export async function deleteAttendance(festId, date, studentId) {
+  await deleteDoc(doc(db, "fests", festId, "attendance", `${date}_${studentId}`));
 }
 
 /** Marks a whole class in one write — the "everyone is here" case, which

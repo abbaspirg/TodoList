@@ -74,6 +74,31 @@ count per group per item so admins can visually balance participation.
 account + emails temp password or magic link), assign judge(s) to one or more
 items via multi-select.
 
+**Add/edit dialogs** — every admin form (student, item, category, judge) opens
+as an overlay dialog over the list it belongs to, not appended underneath it
+(`js/modal.js`). That started as a real complaint: on a roster of a hundred
+students, tapping "Add Student" looked like it did nothing, because the form
+had opened several screens further down. Back — the header button, the Android
+hardware button and the system back gesture alike — closes an open dialog
+before it does anything to navigation, so a half-filled form is never lost to
+a stray swipe.
+
+**Marks screen** (`/admin/scores/:itemId`) — the raw marks behind one item:
+every judge's mark for every participant. An admin can edit a mark, delete it,
+withdraw a participant (entry stays on record, marks kept) or delete their
+entry outright (entry and marks erased). Judges can do none of it — their marks
+are create-once, which is what stops anyone revising after seeing another
+judge's. Every one of these actions re-derives the item's result immediately,
+in both directions: take an item below a full set of marks and the result it
+had is withdrawn and the item drops back to `ongoing`, so a published standing
+can never outlive the marks it came from.
+
+Deletion is available wherever a record can be created — students, items,
+categories, groups, judges, registrations, marks, and a day's attendance mark
+(clearing it deletes the record rather than writing a neutral status, since
+"not marked" and "marked absent" are different facts the report counts
+separately). Each one confirms first and says what else goes with it.
+
 **Results & Analytics** — per-item result cards (medal icons for 1st/2nd/3rd,
 participant name + photo + group), a "Publish" button (keeps unpublished
 results hidden from the public feed until Admin reviews), and the

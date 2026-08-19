@@ -341,6 +341,64 @@ input[type="color"] {
 .slider-row input[type="range"] { flex: 1; }
 .slider-row .value { width: 26px; text-align: right; font-weight: 600; }
 
+/* Overlay dialog — see js/modal.js. Sits above the header (10) and the FAB
+   (5) but below the toast (50), so a "Saved" confirmation is still readable
+   while a dialog is open. */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: calc(16px + env(safe-area-inset-top, 0px)) 12px calc(16px + env(safe-area-inset-bottom, 0px));
+  background: rgba(8, 14, 11, 0.55);
+}
+
+.modal-card {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 520px;
+  /* The body scrolls inside the card rather than the card growing past the
+     screen — on a phone the student form plus an open keyboard is taller
+     than the viewport. */
+  max-height: 100%;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
+  animation: modal-in 0.16s ease-out;
+}
+
+@keyframes modal-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .modal-card { animation: none; }
+}
+
+.modal-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.modal-title {
+  flex: 1;
+  margin: 0;
+  font-size: 1.05rem;
+}
+.modal-body {
+  padding: 16px;
+  overflow-y: auto;
+}
+/* Nothing behind the dialog should scroll while it's open. */
+body.modal-open { overflow: hidden; }
+
 .toast {
   position: fixed;
   left: 50%;

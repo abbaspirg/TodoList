@@ -9,6 +9,7 @@ import {
   uploadStudentPhoto,
 } from "../data.js";
 import { FEST_ID } from "../app-config.js";
+import { openModal } from "../modal.js";
 
 export async function renderAdminStudents() {
   let groups = [];
@@ -18,7 +19,6 @@ export async function renderAdminStudents() {
   let groupFilter = "";
 
   const listHost = el("ul", { class: "list" });
-  const formHost = el("div", {});
 
   const searchInput = el("input", {
     type: "search",
@@ -42,7 +42,6 @@ export async function renderAdminStudents() {
         el("div", { class: "btn-row" }, [searchInput, groupSelect]),
       ]),
       el("div", { class: "card" }, [listHost]),
-      formHost,
       el("button", { class: "btn fab", onclick: () => openForm() }, "+ Add Student"),
     ]),
   );
@@ -143,68 +142,66 @@ export async function renderAdminStudents() {
     });
 
     const submitBtn = el("button", { class: "btn", type: "submit" }, "Save");
+    // Assigned right after openModal below; the handlers that read it only
+    // ever run once the dialog is on screen.
+    let dialog = null;
 
-    formHost.replaceChildren(
-      el(
-        "form",
-        {
-          class: "card",
-          onsubmit: async (e) => {
+    const form = el(
+      "form",
+      {
+        onsubmit: async (e) => {
             e.preventDefault();
-            const name = nameInput.value.trim();
-            const groupId = groupSelectField.value;
-            if (!name || !groupId) return;
+          const name = nameInput.value.trim();
+          const groupId = groupSelectField.value;
+          if (!name || !groupId) return;
 
-            submitBtn.disabled = true;
-            submitBtn.textContent = pendingPhotoCanvas ? "Uploading photo…" : "Saving…";
-            try {
-              const photoUrl = pendingPhotoCanvas
-                ? await uploadStudentPhoto(FEST_ID, studentId, pendingPhotoCanvas)
-                : existing?.photoUrl || null;
-              const student = {
-                id: studentId,
-                festId: FEST_ID,
-                name,
-                className: classInput.value.trim(),
-                groupId,
-                categoryId: categorySelectField.value || null,
-                photoUrl,
-              };
-              await (existing ? updateStudent(FEST_ID, student) : addStudent(FEST_ID, student));
-              toast(existing ? "Student updated" : "Student added");
-              formHost.replaceChildren();
-            } catch (err) {
-              toast("Couldn't save photo — check your connection and try again.");
-              submitBtn.disabled = false;
-              submitBtn.textContent = "Save";
-            }
-          },
+          submitBtn.disabled = true;
+          submitBtn.textContent = pendingPhotoCanvas ? "Uploading photo…" : "Saving…";
+          try {
+            const photoUrl = pendingPhotoCanvas
+              ? await uploadStudentPhoto(FEST_ID, studentId, pendingPhotoCanvas)
+              : existing?.photoUrl || null;
+            const student = {
+              id: studentId,
+              festId: FEST_ID,
+              name,
+              className: classInput.value.trim(),
+              groupId,
+              categoryId: categorySelectField.value || null,
+              photoUrl,
+            };
+            await (existing ? updateStudent(FEST_ID, student) : addStudent(FEST_ID, student));
+            toast(existing ? "Student updated" : "Student added");
+            dialog?.close();
+          } catch (err) {
+            toast("Couldn't save photo — check your connection and try again.");
+            submitBtn.disabled = false;
+            submitBtn.textContent = "Save";
+          }
         },
-        [
-          el("h2", { style: "margin-top:0" }, existing ? "Edit Student" : "Add Student"),
-          el("div", { class: "btn-row", style: "align-items:center;margin-bottom:12px" }, [
-            photoPreview,
-            photoInput,
-          ]),
-          el("div", { class: "field" }, [el("label", {}, "Full name"), nameInput]),
-          el("div", { class: "field" }, [el("label", {}, "Class"), classInput]),
-          el("div", { class: "field" }, [el("label", {}, "Group"), groupSelectField]),
-          el("div", { class: "field" }, [
-            el("label", {}, "Category"),
-            categorySelectField,
-          ]),
-          el(
-            "p",
-            { class: "subtitle" },
-            "Sets which competition items this student is eligible for during registration.",
-          ),
-          el("div", { class: "btn-row" }, [
-            submitBtn,
-            el("button", { class: "btn secondary", type: "button", onclick: () => formHost.replaceChildren() }, "Cancel"),
-          ]),
-        ],
-      ),
+      },
+      [
+        el("div", { class: "btn-row", style: "align-items:center;margin-bottom:12px" }, [
+          photoPreview,
+          photoInput,
+        ]),
+        el("div", { class: "field" }, [el("label", {}, "Full name"), nameInput]),
+        el("div", { class: "field" }, [el("label", {}, "Class"), classInput]),
+        el("div", { class: "field" }, [el("label", {}, "Group"), groupSelectField]),
+        el("div", { class: "field" }, [el("label", {}, "Category"), categorySelectField]),
+        el(
+          "p",
+          { class: "subtitle" },
+          "Sets which competition items this student is eligible for during registration.",
+        ),
+        el("div", { class: "btn-row" }, [
+          submitBtn,
+          el("button", { class: "btn secondary", type: "button", onclick: () => dialog?.close() }, "Cancel"),
+        ]),
+      ],
     );
+
+    dialog = openModal({ title: existing ? "Edit Student" : "Add Student", content: form });
   }
 
   watchGroups(FEST_ID, (g) => {

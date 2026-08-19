@@ -1,5 +1,12 @@
 import { el, mount, toast } from "../util.js";
-import { watchStudents, watchGroups, watchAttendance, setAttendance, setAttendanceBulk } from "../data.js";
+import {
+  watchStudents,
+  watchGroups,
+  watchAttendance,
+  setAttendance,
+  setAttendanceBulk,
+  deleteAttendance,
+} from "../data.js";
 import { FEST_ID } from "../app-config.js";
 import { navigate } from "../router.js";
 
@@ -146,6 +153,18 @@ export async function renderAdminAttendance() {
     }
   }
 
+  /** Undoes a mark by deleting the record, not by writing some neutral
+   * status: "not marked" and "marked absent" are different facts, and the
+   * report counts them separately. */
+  async function clearMark(student) {
+    try {
+      await deleteAttendance(FEST_ID, date, student.id);
+      toast(`${student.name}'s mark cleared`);
+    } catch (err) {
+      toast(err?.message || "Couldn't clear that mark.");
+    }
+  }
+
   markAllBtn.addEventListener("click", async () => {
     const list = visibleStudents();
     if (list.length === 0) return;
@@ -200,10 +219,8 @@ export async function renderAdminAttendance() {
                   .filter(Boolean)
                   .join(" · ")),
               ]),
-              el(
-                "div",
-                { class: "btn-row", style: "flex-wrap:nowrap;gap:4px" },
-                STATUSES.map((st) =>
+              el("div", { class: "btn-row", style: "flex-wrap:nowrap;gap:4px" }, [
+                ...STATUSES.map((st) =>
                   el(
                     "button",
                     {
@@ -214,7 +231,20 @@ export async function renderAdminAttendance() {
                     st.label,
                   ),
                 ),
-              ),
+                // Only offered once there's something to undo — an empty
+                // row has nothing to clear.
+                current
+                  ? el(
+                      "button",
+                      {
+                        class: "btn secondary attendance-btn",
+                        title: "Clear this mark",
+                        onclick: () => clearMark(s),
+                      },
+                      "✕",
+                    )
+                  : null,
+              ]),
             ]);
           }),
         ),

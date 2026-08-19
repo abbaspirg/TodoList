@@ -3,6 +3,7 @@ import { watchJudges, watchItems, addJudge, assignJudgeToItems, setUserRole, del
 import { FEST_ID } from "../app-config.js";
 import { isLocalMode } from "../firebase.js";
 import { createJudgeAccount } from "../auth.js";
+import { openModal } from "../modal.js";
 
 function friendlyAuthError(err) {
   const code = err?.code || "";
@@ -19,13 +20,11 @@ function friendlyAuthError(err) {
 export async function renderAdminJudges() {
   let items = [];
   const listHost = el("div", {});
-  const formHost = el("div", {});
 
   mount(
     el("div", {}, [
       el("h1", { class: "page-title" }, "Judges"),
       listHost,
-      formHost,
       el("button", { class: "btn fab", onclick: () => openForm() }, "+ Add Judge"),
     ]),
   );
@@ -36,69 +35,68 @@ export async function renderAdminJudges() {
     const passwordInput = el("input", { type: "text", minlength: "6", placeholder: "at least 6 characters" });
     const saveBtn = el("button", { class: "btn", type: "submit" }, "Save");
 
-    formHost.replaceChildren(
-      el(
-        "form",
-        {
-          class: "card",
-          onsubmit: async (e) => {
-            e.preventDefault();
-            const name = nameInput.value.trim();
-            const email = emailInput.value.trim();
-            const password = passwordInput.value;
-            if (!name) return;
+    let dialog = null;
+    const form = el(
+      "form",
+      {
+        onsubmit: async (e) => {
+          e.preventDefault();
+          const name = nameInput.value.trim();
+          const email = emailInput.value.trim();
+          const password = passwordInput.value;
+          if (!name) return;
 
-            saveBtn.disabled = true;
-            saveBtn.textContent = "Saving…";
-            try {
-              const judgeId = genId();
-              // In Local Test Mode there are no accounts — a judge picks
-              // their name on the login screen — so the sign-in account is
-              // only created against a real Firebase project.
-              let authUid = null;
-              if (!isLocalMode()) {
-                if (!email || password.length < 6) {
-                  throw new Error("A judge needs an email and a password of at least 6 characters to sign in.");
-                }
-                authUid = await createJudgeAccount(email, password);
-                // Grants the account its role. Written after the account
-                // exists, before the judge doc, so a judge record never
-                // exists that can't be signed into.
-                await setUserRole(authUid, { role: "judge", judgeId });
+          saveBtn.disabled = true;
+          saveBtn.textContent = "Saving…";
+          try {
+            const judgeId = genId();
+            // In Local Test Mode there are no accounts — a judge picks
+            // their name on the login screen — so the sign-in account is
+            // only created against a real Firebase project.
+            let authUid = null;
+            if (!isLocalMode()) {
+              if (!email || password.length < 6) {
+                throw new Error("A judge needs an email and a password of at least 6 characters to sign in.");
               }
-              await addJudge(FEST_ID, { id: judgeId, festId: FEST_ID, name, email, authUid });
-              toast(isLocalMode() ? "Judge added" : `${name} can now sign in with ${email}`);
-              formHost.replaceChildren();
-            } catch (err) {
-              toast(friendlyAuthError(err));
-            } finally {
-              saveBtn.disabled = false;
-              saveBtn.textContent = "Save";
+              authUid = await createJudgeAccount(email, password);
+              // Grants the account its role. Written after the account
+              // exists, before the judge doc, so a judge record never
+              // exists that can't be signed into.
+              await setUserRole(authUid, { role: "judge", judgeId });
             }
-          },
+            await addJudge(FEST_ID, { id: judgeId, festId: FEST_ID, name, email, authUid });
+            toast(isLocalMode() ? "Judge added" : `${name} can now sign in with ${email}`);
+            dialog?.close();
+          } catch (err) {
+            toast(friendlyAuthError(err));
+          } finally {
+            saveBtn.disabled = false;
+            saveBtn.textContent = "Save";
+          }
         },
-        [
-          el("h2", { style: "margin-top:0" }, "Add Judge"),
-          el("div", { class: "field" }, [el("label", {}, "Name"), nameInput]),
-          el("div", { class: "field" }, [el("label", {}, "Email"), emailInput]),
-          !isLocalMode()
-            ? el("div", { class: "field" }, [el("label", {}, "Password"), passwordInput])
-            : null,
-          !isLocalMode()
-            ? el(
-                "p",
-                { class: "subtitle" },
-                "Creates their sign-in account. Give them this email and password — they enter it " +
-                  "on their own phone after installing the app.",
-              )
-            : null,
-          el("div", { class: "btn-row" }, [
-            saveBtn,
-            el("button", { class: "btn secondary", type: "button", onclick: () => formHost.replaceChildren() }, "Cancel"),
-          ]),
-        ],
-      ),
+      },
+      [
+        el("div", { class: "field" }, [el("label", {}, "Name"), nameInput]),
+        el("div", { class: "field" }, [el("label", {}, "Email"), emailInput]),
+        !isLocalMode()
+          ? el("div", { class: "field" }, [el("label", {}, "Password"), passwordInput])
+          : null,
+        !isLocalMode()
+          ? el(
+              "p",
+              { class: "subtitle" },
+              "Creates their sign-in account. Give them this email and password — they enter it " +
+                "on their own phone after installing the app.",
+            )
+          : null,
+        el("div", { class: "btn-row" }, [
+          saveBtn,
+          el("button", { class: "btn secondary", type: "button", onclick: () => dialog?.close() }, "Cancel"),
+        ]),
+      ],
     );
+
+    dialog = openModal({ title: "Add Judge", content: form });
   }
 
   function renderJudges(judges) {

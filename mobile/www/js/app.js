@@ -3,6 +3,7 @@ import { watchAuthState, currentRole, signOut } from "./auth.js";
 import { hasFirebaseError, needsSetup, whenFirebaseReady } from "./firebase.js";
 import { el, toast } from "./util.js";
 import { isDark, toggleTheme } from "./theme.js";
+import { closeTopModal } from "./modal.js";
 
 import { renderLogin } from "./views/login.js";
 import { renderNotConfigured } from "./views/not-configured.js";
@@ -138,7 +139,12 @@ function updateBackButton() {
   const path = location.hash.slice(1) || "/";
   document.getElementById("backBtn").hidden = HOME_PATHS.has(path);
 }
-document.getElementById("backBtn").addEventListener("click", () => history.back());
+// An open dialog is what "back" means while one is up — leaving the screen
+// out from under a half-filled form is never what the tap intended.
+document.getElementById("backBtn").addEventListener("click", () => {
+  if (closeTopModal()) return;
+  history.back();
+});
 window.addEventListener("hashchange", updateBackButton);
 
 // --- Android hardware/gesture back button -----------------------------
@@ -156,6 +162,8 @@ const CapApp = window.CapPlugins?.App;
 if (CapApp) {
   let lastBackPressAt = 0;
   CapApp.addListener("backButton", () => {
+    // Same rule as the header's back button: dismiss the dialog first.
+    if (closeTopModal()) return;
     const path = location.hash.slice(1) || "/";
     if (!HOME_PATHS.has(path)) {
       history.back();

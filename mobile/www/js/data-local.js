@@ -222,6 +222,17 @@ export async function overrideScore(_festId, scoreId, totalMarks, itemId) {
   upsert("scores", { id: scoreId, totalMarks, editedByAdminAt: new Date().toISOString() });
   recomputeResult(itemId);
 }
+export async function deleteScore(_festId, scoreId, itemId) {
+  remove("scores", scoreId);
+  recomputeResult(itemId);
+}
+export async function deleteRegistration(_festId, registrationId, itemId) {
+  remove("registrations", registrationId);
+  for (const sc of getAll("scores").filter((sc) => sc.registrationId === registrationId)) {
+    remove("scores", sc.id);
+  }
+  recomputeResult(itemId);
+}
 export async function recomputeItemResult(_festId, itemId) {
   return recomputeResult(itemId);
 }
@@ -295,6 +306,9 @@ export function watchAllAttendance(_festId, cb) {
 }
 export async function setAttendance(_festId, record) {
   upsert("attendance", { ...record, id: `${record.date}_${record.studentId}`, markedAt: new Date().toISOString() });
+}
+export async function deleteAttendance(_festId, date, studentId) {
+  remove("attendance", `${date}_${studentId}`);
 }
 export async function setAttendanceBulk(_festId, records) {
   for (const record of records) await setAttendance(_festId, record);
