@@ -44,25 +44,3 @@ export function renderSetup() {
     ]),
   );
 }
-
-export function renderNotConfigured() {
-  mountInto(
-    "setupHost",
-    el("div", {}, [
-      el("h1", { class: "page-title" }, "Can't reach the database"),
-      el("div", { class: "card" }, [
-        el(
-          "p",
-          { class: "subtitle", style: "margin-top:0" },
-          "The app has a project configured but couldn't connect to it. That usually means this " +
-            "device is offline, or the config is for a project that no longer exists.",
-        ),
-        el(
-          "button",
-          { class: "btn wide", onclick: () => location.reload() },
-          "Try again",
-        ),
-      ]),
-    ]),
-  );
-}

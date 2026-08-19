@@ -1,10 +1,31 @@
 # Ludo Circle
 
-Ludo for **2 to 8 players** on separate phones, with **live voice chat** for
-everyone in the room. Runs as an Android app and as an installable web app,
-on a free Firebase project.
+Ludo for **2 to 8 players**, two ways:
+
+- **On one phone** — pass it round, everyone takes their turn on the same
+  screen. Needs no internet, no account and no setup at all.
+- **On separate phones** — with **live voice chat** for everyone in the
+  room. This is the part that needs a free Firebase project.
+
+Runs as an Android app and as an installable web app.
 
 ---
+
+## Playing on one phone
+
+Open the app, pick how many players, optionally type their names, and start.
+The die is always live for whoever is on turn, and the status line names
+them ("Ayesha — roll!") so there is no doubt whose go it is. Voice chat and
+emoji throwing are hidden, because everyone is already looking at the same
+screen.
+
+The game is **saved after every move**, so locking the phone or closing the
+app doesn't lose it — the home screen offers to resume.
+
+This mode shares the entire board, renderer and rules engine with online
+play. The only difference is where the state lives: `js/local-game.js`
+presents the same shape as a Firestore room document, so nothing else in the
+app needs to know which mode it is in.
 
 ## Two boards, because seven players don't fit on one
 
@@ -137,6 +158,8 @@ commit-reveal scheme between players; both were out of scope for a free,
 serverless app. Worth knowing before you play for money.
 
 ## Setting it up
+
+None of this is needed to play on one phone — only to play across devices.
 
 1. Create a Firebase project at <https://console.firebase.google.com>.
 2. **Authentication → Sign-in method → Anonymous → Enable.** Players never

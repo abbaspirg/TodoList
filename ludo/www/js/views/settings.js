@@ -4,7 +4,7 @@ import { clearFirebaseConfig, isBakedIn } from "../app-config.js";
 
 const DIE_FACES = ["", "⚀", "⚁", "⚂", "⚃", "⚄", "⚅"];
 
-export function renderSettings({ onBack }) {
+export function renderSettings({ onBack, onSetUpProject }) {
   const turn = getSavedTurn();
   const urlsInput = el("input", { type: "text", placeholder: "turn:turn.example.com:3478", value: turn?.urls || "" });
   const userInput = el("input", { type: "text", placeholder: "username", value: turn?.username || "" });
@@ -83,20 +83,24 @@ export function renderSettings({ onBack }) {
             el(
               "p",
               { class: "subtitle", style: "margin:0 0 10px" },
-              "Clears the project this device is pointed at and returns to the setup screen.",
+              "Only needed to play with people on their own phones. Playing on this " +
+                "phone works without one.",
             ),
-            el(
-              "button",
-              {
-                class: "btn danger",
-                onclick: () => {
-                  if (!confirm("Forget this Firebase project on this device?")) return;
-                  clearFirebaseConfig();
-                  location.reload();
+            el("div", { class: "btn-row" }, [
+              el("button", { class: "btn", onclick: onSetUpProject }, "Set up a project"),
+              el(
+                "button",
+                {
+                  class: "btn danger",
+                  onclick: () => {
+                    if (!confirm("Forget this Firebase project on this device?")) return;
+                    clearFirebaseConfig();
+                    location.reload();
+                  },
                 },
-              },
-              "Forget project",
-            ),
+                "Forget project",
+              ),
+            ]),
           ])
         : null,
 

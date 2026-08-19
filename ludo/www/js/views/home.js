@@ -1,29 +1,123 @@
 import { el, mountInto, toast } from "../util.js";
 import { getSavedName, saveName } from "../auth.js";
 import { MAX_SEATS, MIN_SEATS, boardConfig } from "../game.js";
+import { describeSavedGame } from "../local-game.js";
 
-/** Home screen: your name, then either start a room or join one. */
-export function renderHome({ onCreate, onJoin, onSettings }) {
-  const nameInput = el("input", { type: "text", value: getSavedName(), placeholder: "Your name", maxlength: "18" });
+const NAMES_KEY = "ludoLocalNames";
 
+function savedLocalNames() {
+  try {
+    return JSON.parse(localStorage.getItem(NAMES_KEY) || "[]");
+  } catch {
+    return [];
+  }
+}
+
+/** Home screen: play on this phone, or play with people on their own
+ * phones. Pass-and-play comes first because it needs nothing set up — no
+ * project, no internet, no room code. */
+export function renderHome({ onCreate, onJoin, onSettings, onStartLocal, onResumeLocal, online }) {
+  mountInto(
+    "homeHost",
+    el("div", {}, [
+      el("h1", { class: "page-title" }, "Ludo Circle"),
+      resumeCard(onResumeLocal),
+      localCard(onStartLocal),
+      online.ready ? onlineCards({ onCreate, onJoin }) : offlineNotice(online, onSettings),
+      el("div", { class: "btn-row" }, [
+        el("button", { class: "btn secondary", onclick: onSettings }, "Settings"),
+      ]),
+    ]),
+  );
+}
+
+/** Offered only when there is a game to come back to. */
+function resumeCard(onResumeLocal) {
+  const saved = describeSavedGame();
+  if (!saved) return null;
+  return el("div", { class: "card" }, [
+    el("h2", { class: "card-title" }, "Carry on where you left off"),
+    el(
+      "p",
+      { class: "subtitle", style: "margin:0 0 10px" },
+      saved.finished
+        ? `Finished game with ${saved.names.join(", ")}.`
+        : `${saved.players}-player game — it's ${saved.turn}'s turn.`,
+    ),
+    el("button", { class: "btn wide", onclick: onResumeLocal }, "Resume game"),
+  ]);
+}
+
+function localCard(onStartLocal) {
   const seatSelect = el(
     "select",
     {},
     Array.from({ length: MAX_SEATS - MIN_SEATS + 1 }, (_, i) => {
       const seats = MIN_SEATS + i;
-      return el("option", { value: String(seats), selected: seats === 7 || undefined }, `${seats} players`);
+      return el("option", { value: String(seats), selected: seats === 4 || undefined }, `${seats} players`);
     }),
   );
-  const seatNote = el("p", { class: "subtitle", style: "margin:6px 0 0" }, "");
-  const updateSeatNote = () => {
-    const config = boardConfig(Number(seatSelect.value));
-    seatNote.textContent =
-      `${config.trackLen} squares around the board, starts ${config.seg} apart` +
-      (config.seats === 4 ? " — exactly the classic board." : ".");
-  };
-  seatSelect.addEventListener("change", updateSeatNote);
-  updateSeatNote();
 
+  const nameHost = el("div", {});
+  const boardNote = el("p", { class: "subtitle", style: "margin:8px 0 0" }, "");
+
+  const previousNames = savedLocalNames();
+  function renderNameFields() {
+    const seats = Number(seatSelect.value);
+    const existing = [...nameHost.querySelectorAll("input")].map((i) => i.value);
+    nameHost.replaceChildren(
+      ...Array.from({ length: seats }, (_, seat) =>
+        el("input", {
+          type: "text",
+          placeholder: `Player ${seat + 1}`,
+          maxlength: "14",
+          value: existing[seat] ?? previousNames[seat] ?? "",
+          style: "margin-bottom:6px",
+        }),
+      ),
+    );
+    const config = boardConfig(seats);
+    boardNote.textContent = config.classic
+      ? "The classic cross board."
+      : `A ${seats}-sided board — one arm each.`;
+  }
+  seatSelect.addEventListener("change", renderNameFields);
+  renderNameFields();
+
+  const startBtn = el("button", { class: "btn wide glow" }, "Start game");
+  startBtn.addEventListener("click", () => {
+    const names = [...nameHost.querySelectorAll("input")].map((i) => i.value.trim());
+    try {
+      localStorage.setItem(NAMES_KEY, JSON.stringify(names));
+    } catch {
+      // Remembering names is a convenience, not worth failing a game start.
+    }
+    onStartLocal({ seats: Number(seatSelect.value), names });
+  });
+
+  return el("div", { class: "card" }, [
+    el("h2", { class: "card-title" }, "🎲 Play on this phone"),
+    el(
+      "p",
+      { class: "subtitle", style: "margin:0 0 10px" },
+      "Everyone plays on this one device, taking it in turns. No internet needed.",
+    ),
+    el("div", { class: "field" }, [el("label", {}, "How many players"), seatSelect, boardNote]),
+    el("div", { class: "field" }, [el("label", {}, "Names (optional)"), nameHost]),
+    startBtn,
+  ]);
+}
+
+function onlineCards({ onCreate, onJoin }) {
+  const nameInput = el("input", { type: "text", value: getSavedName(), placeholder: "Your name", maxlength: "18" });
+  const seatSelect = el(
+    "select",
+    {},
+    Array.from({ length: MAX_SEATS - MIN_SEATS + 1 }, (_, i) => {
+      const seats = MIN_SEATS + i;
+      return el("option", { value: String(seats), selected: seats === 4 || undefined }, `${seats} players`);
+    }),
+  );
   const createBtn = el("button", { class: "btn wide" }, "Create room");
   const joinInput = el("input", {
     id: "joinCode",
@@ -81,35 +175,36 @@ export function renderHome({ onCreate, onJoin, onSettings }) {
     }
   });
 
-  mountInto(
-    "homeHost",
-    el("div", {}, [
-      el("h1", { class: "page-title" }, "Ludo Circle"),
-      el("div", { class: "card" }, [
-        el("div", { class: "field" }, [el("label", {}, "Your name"), nameInput]),
-      ]),
+  return el("div", { class: "card" }, [
+    el("h2", { class: "card-title" }, "📱 Play on separate phones"),
+    el(
+      "p",
+      { class: "subtitle", style: "margin:0 0 10px" },
+      "With voice chat. One person creates a room and shares the code.",
+    ),
+    el("div", { class: "field" }, [el("label", {}, "Your name"), nameInput]),
+    el("div", { class: "field" }, [el("label", {}, "How many players"), seatSelect]),
+    createBtn,
+    el("div", { style: "height:14px" }),
+    el("div", { class: "field" }, [el("label", {}, "…or join with a code"), joinInput]),
+    joinBtn,
+  ]);
+}
 
-      el("div", { class: "card" }, [
-        el("h2", { class: "card-title" }, "Start a game"),
-        el("div", { class: "field" }, [el("label", {}, "How many players"), seatSelect, seatNote]),
-        el("div", { style: "height:10px" }),
-        createBtn,
-      ]),
-
-      el("div", { class: "card" }, [
-        el("h2", { class: "card-title" }, "Join a game"),
-        el("div", { class: "field" }, [el("label", {}, "Room code"), joinInput]),
-        joinBtn,
-      ]),
-
-      el("div", { class: "btn-row" }, [
-        el("button", { class: "btn secondary", onclick: onSettings }, "Settings"),
-      ]),
-      el(
-        "p",
-        { class: "footer-note" },
-        "Everyone taps Join with the same code. Voice chat turns on inside the room.",
-      ),
-    ]),
-  );
+/** Playing on separate phones is the only part that needs a Firebase
+ * project, so its absence is explained here rather than blocking the whole
+ * app behind a setup screen. */
+function offlineNotice(online, onSettings) {
+  return el("div", { class: "card" }, [
+    el("h2", { class: "card-title" }, "📱 Play on separate phones"),
+    el(
+      "p",
+      { class: "subtitle", style: "margin:0 0 10px" },
+      online.reason === "error"
+        ? "Can't reach the database right now. Playing on this phone still works."
+        : "Needs a free Firebase project to sync the game between devices. " +
+          "Playing on this phone works without one.",
+    ),
+    el("button", { class: "btn secondary wide", onclick: onSettings }, "Set it up"),
+  ]);
 }

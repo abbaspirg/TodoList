@@ -100,12 +100,15 @@ function settle(canvas) {
   renderChrome(context, { mySeat: seat, animating: false });
 }
 
-function drawOptionsFor(game, { room, myUid }, mySeat) {
+function drawOptionsFor(game, context, mySeat) {
+  const { room, passAndPlay } = context;
   const isMyTurn = game.turn === mySeat && room.status === "playing";
   return {
     isDark: isDark(),
     selectable: isMyTurn && game.dice !== null ? legalMoves(game) : [],
-    mySeat,
+    // No "these are mine" marker on a shared phone — every seat is played
+    // from it, so marking one would be misleading.
+    mySeat: passAndPlay ? null : mySeat,
   };
 }
 
@@ -125,8 +128,19 @@ function drawFrame(canvas, game, context, mySeat) {
 }
 
 function renderChrome(context, { mySeat, animating: isWalking }) {
-  const { room, myUid, presence, voice, onRoll, onMove, onPlayAgain, onLeave, onToggleVoice, onThrowEmote } =
-    context;
+  const {
+    room,
+    myUid,
+    presence,
+    voice,
+    passAndPlay,
+    onRoll,
+    onMove,
+    onPlayAgain,
+    onLeave,
+    onToggleVoice,
+    onThrowEmote,
+  } = context;
   const game = room.game;
   const isMyTurn = game.turn === mySeat && room.status === "playing";
   const canRoll = isMyTurn && game.dice === null && !isWalking;
@@ -157,9 +171,13 @@ function renderChrome(context, { mySeat, animating: isWalking }) {
         ? `🏆 ${nameFor(game.finished[0])} wins!`
         : isMyTurn
           ? game.dice === null
-            ? "Your turn — roll!"
+            ? passAndPlay
+              ? `${nameFor(game.turn)} — roll!`
+              : "Your turn — roll!"
             : movable.length
-              ? "Tap a token to move"
+              ? passAndPlay
+                ? `${nameFor(game.turn)}, tap a token`
+                : "Tap a token to move"
               : "No move available…"
           : `${nameFor(game.turn)}'s turn`,
     ),
@@ -168,15 +186,17 @@ function renderChrome(context, { mySeat, animating: isWalking }) {
       { class: "icon-btn", title: isMuted() ? "Sound off" : "Sound on", onclick: onToggleSound },
       isMuted() ? "🔈" : "🔊",
     ),
-    el(
-      "button",
-      {
-        class: `icon-btn${voice?.isActive?.() && !voice.isMuted() ? " on" : ""}`,
-        title: voice?.isActive?.() ? (voice.isMuted() ? "Unmute" : "Mute") : "Join voice",
-        onclick: onToggleVoice,
-      },
-      voice?.isActive?.() && voice.isMuted() ? "🔇" : "🎙",
-    ),
+    passAndPlay
+      ? null
+      : el(
+          "button",
+          {
+            class: `icon-btn${voice?.isActive?.() && !voice.isMuted() ? " on" : ""}`,
+            title: voice?.isActive?.() ? (voice.isMuted() ? "Unmute" : "Mute") : "Join voice",
+            onclick: onToggleVoice,
+          },
+          voice?.isActive?.() && voice.isMuted() ? "🔇" : "🎙",
+        ),
   );
 
   // --- Controls ------------------------------------------------------
@@ -202,8 +222,10 @@ function renderChrome(context, { mySeat, animating: isWalking }) {
           { class: `btn${canRoll ? " glow" : " secondary"}`, disabled: !canRoll || undefined, onclick: onRoll },
           canRoll ? "ROLL" : isMyTurn ? "Move a token" : "Waiting…",
         ),
-    el("button", { class: "icon-btn", title: "Throw an emoji", onclick: () => toggleTray(onThrowEmote) }, "😀"),
-    el("button", { class: "icon-btn", title: "Leave game", onclick: onLeave }, "✕"),
+    passAndPlay
+      ? null
+      : el("button", { class: "icon-btn", title: "Throw an emoji", onclick: () => toggleTray(onThrowEmote) }, "😀"),
+    el("button", { class: "icon-btn", title: passAndPlay ? "Back to menu" : "Leave game", onclick: onLeave }, "✕"),
   );
 
   // --- Players -------------------------------------------------------
@@ -224,7 +246,7 @@ function renderChrome(context, { mySeat, animating: isWalking }) {
           },
           [
             el("span", { class: "pip" }),
-            player.name + (player.uid === myUid ? " (you)" : ""),
+            player.name + (!passAndPlay && player.uid === myUid ? " (you)" : ""),
             rank >= 0
               ? el("span", { class: "tag live" }, `${["🥇", "🥈", "🥉"][rank] || "#" + (rank + 1)}`)
               : el("span", { class: "tag" }, `${progress.home}/4`),
@@ -305,9 +327,16 @@ function humanise(message, nameFor) {
   return message.replace(/[Ss]eat (\d+)/g, (_, n) => nameFor(Number(n)));
 }
 
-export function announceTurnChange(room, myUid, previousTurn) {
+export function announceTurnChange(room, myUid, previousTurn, passAndPlay = false) {
   const game = room.game;
   if (!game || game.turn === previousTurn || previousTurn === null) return;
+  if (passAndPlay) {
+    // Whose go it is now matters more when the phone is being handed over.
+    const next = room.players.find((p) => p.seat === game.turn);
+    sounds.yourTurn();
+    if (next) toast(`${next.name}'s turn`);
+    return;
+  }
   if (game.turn === room.seatByUid[myUid]) {
     sounds.yourTurn();
     toast("Your turn");

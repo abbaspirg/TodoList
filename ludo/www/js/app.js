@@ -18,13 +18,23 @@ import {
   leaveRoom,
 } from "./rooms.js";
 import { createVoiceMesh } from "./voice.js";
-import { renderSetup, renderNotConfigured } from "./views/setup.js";
+import { renderSetup } from "./views/setup.js";
 import { renderHome } from "./views/home.js";
 import { renderLobby } from "./views/lobby.js";
 import { renderSettings } from "./views/settings.js";
 import { renderGame, announceTurnChange, maybeAnimateDie, resetPlayView, showEmote } from "./views/play.js";
 import { throwEmote, watchEmotes } from "./emotes.js";
 import { sounds } from "./sound.js";
+import {
+  startLocalGame,
+  resumeLocalGame,
+  watchLocalRoom,
+  localRoll,
+  localMove,
+  localPlayAgain,
+  endLocalGame,
+  currentLocalUid,
+} from "./local-game.js";
 
 let room = null;
 let roomCode = null;
@@ -36,6 +46,10 @@ let unsubEmotes = null;
 let knownPlayerCount = 0;
 let previousTurn = null;
 let screen = "loading";
+// Pass-and-play: the whole game lives on this device, so there is no room
+// subscription, no voice and no emoji throwing — everyone is in the room
+// already.
+let localMode = false;
 
 // --- Screen plumbing -------------------------------------------------------
 
@@ -46,11 +60,50 @@ function show(name) {
 }
 
 function goHome() {
-  renderHome({ onCreate: handleCreate, onJoin: handleJoin, onSettings: () => {
-    renderSettings({ onBack: goHome });
-    show("settings");
-  } });
+  renderHome({
+    onCreate: handleCreate,
+    onJoin: handleJoin,
+    onStartLocal: handleStartLocal,
+    onResumeLocal: handleResumeLocal,
+    // Playing on separate phones is the only thing that needs a project;
+    // pass-and-play works on a fresh install with nothing configured.
+    online: {
+      ready: !needsSetup() && !hasFirebaseError(),
+      reason: hasFirebaseError() ? "error" : "setup",
+    },
+    onSettings: () => {
+      renderSettings({ onBack: goHome, onSetUpProject: () => { renderSetup(); show("setup"); } });
+      show("settings");
+    },
+  });
   show("home");
+}
+
+// --- Pass-and-play ---------------------------------------------------------
+
+function handleStartLocal({ seats, names }) {
+  startLocalGame(seats, names);
+  enterLocalRoom();
+}
+
+function handleResumeLocal() {
+  if (!resumeLocalGame()) return toast("That game is no longer saved.");
+  enterLocalRoom();
+}
+
+function enterLocalRoom() {
+  localMode = true;
+  previousTurn = null;
+  resetPlayView();
+  unsubRoom?.();
+  unsubRoom = watchLocalRoom((data) => {
+    if (!data) {
+      exitRoom();
+      return;
+    }
+    room = data;
+    rerender();
+  });
 }
 
 // --- Room lifecycle --------------------------------------------------------
@@ -118,6 +171,7 @@ function exitRoom() {
   unsubPresence?.();
   unsubEmotes?.();
   unsubRoom = unsubPresence = unsubEmotes = null;
+  localMode = false;
   resetPlayView();
   voice?.leave();
   voice = null;
@@ -128,6 +182,13 @@ function exitRoom() {
 }
 
 async function handleLeave() {
+  if (localMode) {
+    // The game is saved, so leaving is not losing it — say so, or nobody
+    // will risk tapping it mid-game.
+    if (!confirm("Back to the menu? This game is saved and you can resume it.")) return;
+    exitRoom();
+    return;
+  }
   if (!confirm("Leave this room?")) return;
   const code = roomCode;
   exitRoom();
@@ -137,7 +198,7 @@ async function handleLeave() {
 // --- Voice -----------------------------------------------------------------
 
 async function handleToggleVoice() {
-  if (!room) return;
+  if (!room || localMode) return;
 
   if (!voice) {
     voice = createVoiceMesh(roomCode, { onPeerState: () => rerender() });
@@ -179,8 +240,19 @@ function nameOfMe() {
 
 function rerender() {
   if (!room) return;
-  const myUid = currentUid();
-  const shared = { room, myUid, presence, voice, onToggleVoice: handleToggleVoice, onLeave: handleLeave };
+  // In pass-and-play the phone belongs to whoever is on turn, so that seat
+  // is "me" — which is what lets every player act on the one device
+  // without the game screen needing to know it is a different mode.
+  const myUid = localMode ? currentLocalUid() : currentUid();
+  const shared = {
+    room,
+    myUid,
+    presence,
+    voice: localMode ? null : voice,
+    passAndPlay: localMode,
+    onToggleVoice: handleToggleVoice,
+    onLeave: handleLeave,
+  };
 
   if (room.status === "lobby") {
     // A small chime when somebody new arrives, so the host doesn't have to
@@ -204,7 +276,7 @@ function rerender() {
     onThrowEmote: handleThrowEmote,
   });
   maybeAnimateDie(room.game);
-  announceTurnChange(room, myUid, previousTurn);
+  announceTurnChange(room, myUid, previousTurn, localMode);
   previousTurn = room.game?.turn ?? null;
 }
 
@@ -217,6 +289,7 @@ async function handleStart() {
 }
 
 async function handleRoll() {
+  if (localMode) return localRoll();
   try {
     await rollForTurn(roomCode);
   } catch (err) {
@@ -225,6 +298,7 @@ async function handleRoll() {
 }
 
 async function handleMove(tokenIndex) {
+  if (localMode) return localMove(tokenIndex);
   try {
     await moveToken(roomCode, tokenIndex);
   } catch (err) {
@@ -233,6 +307,7 @@ async function handleMove(tokenIndex) {
 }
 
 async function handleThrowEmote(emoji) {
+  if (localMode) return; // everyone is already looking at the same screen
   // Shown locally first so it feels instant, then broadcast.
   showEmote(emoji, null);
   try {
@@ -243,6 +318,7 @@ async function handleThrowEmote(emoji) {
 }
 
 async function handlePlayAgain() {
+  if (localMode) return localPlayAgain();
   try {
     await playAgain(roomCode);
   } catch (err) {
@@ -297,20 +373,15 @@ if (CapApp) {
 
 async function boot() {
   await whenFirebaseReady();
-  if (needsSetup()) {
-    renderSetup();
-    show("setup");
-    return;
-  }
-  if (hasFirebaseError()) {
-    renderNotConfigured();
-    show("setup");
-    return;
-  }
-  try {
-    await ensureSignedIn();
-  } catch (err) {
-    toast(friendlyAuthError(err));
+  // The app no longer opens on a setup screen. Pass-and-play needs no
+  // project at all, so a fresh install is playable immediately and the
+  // setup is offered only where it is actually required.
+  if (!needsSetup() && !hasFirebaseError()) {
+    try {
+      await ensureSignedIn();
+    } catch (err) {
+      toast(friendlyAuthError(err));
+    }
   }
   goHome();
 }
