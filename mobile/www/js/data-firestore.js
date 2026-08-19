@@ -180,6 +180,33 @@ export async function addJudge(festId, judge) {
 export async function setUserRole(uid, roleData) {
   await setDoc(doc(db, "roles", uid), roleData);
 }
+
+/** Removes a judge and revokes their access.
+ *
+ * Their already-submitted scores are deliberately kept: they're part of the
+ * record of how a result was reached, and items they'd finished scoring
+ * shouldn't silently change. Dropping them from assignedJudgeIds does mean
+ * an item still waiting only on this judge can now finalize, which is the
+ * behaviour you want when someone withdraws mid-fest.
+ *
+ * Their Firebase Auth account cannot be deleted from here — the client SDK
+ * only lets a user delete themselves, and deleting someone else needs the
+ * Admin SDK (a server). Deleting roles/{uid} revokes all access, which is
+ * what actually matters; the dormant login can be removed in the Firebase
+ * console if wanted. */
+export async function deleteJudge(festId, judgeId, authUid) {
+  const batch = writeBatch(db);
+  batch.delete(doc(db, "fests", festId, "judges", judgeId));
+  if (authUid) batch.delete(doc(db, "roles", authUid));
+
+  const itemsSnap = await getDocs(collection(db, "fests", festId, "items"));
+  for (const itemDoc of itemsSnap.docs) {
+    const assigned = itemDoc.data().assignedJudgeIds || [];
+    if (!assigned.includes(judgeId)) continue;
+    batch.update(itemDoc.ref, { assignedJudgeIds: assigned.filter((id) => id !== judgeId) });
+  }
+  await batch.commit();
+}
 /** Admin-only (enforced by firestore.rules). Writes the assignment to the
  * judge document and mirrors it onto each item's assignedJudgeIds.
  *

@@ -62,7 +62,10 @@ route("/login", async () => {
     navigate(role === "admin" ? "/admin" : "/judge");
     return;
   }
-  await renderLogin();
+  // Signed in but with no role — either the account was never granted one,
+  // or an admin removed this judge. Without this the login form just
+  // reappears after a successful sign-in, with nothing explaining why.
+  await renderLogin({ signedInWithoutRole: signedIn });
 });
 
 route("/admin", page("admin", renderAdminDashboard));

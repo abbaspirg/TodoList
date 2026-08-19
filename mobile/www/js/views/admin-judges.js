@@ -1,5 +1,5 @@
 import { el, mount, genId, toast } from "../util.js";
-import { watchJudges, watchItems, addJudge, assignJudgeToItems, setUserRole } from "../data.js";
+import { watchJudges, watchItems, addJudge, assignJudgeToItems, setUserRole, deleteJudge } from "../data.js";
 import { FEST_ID } from "../app-config.js";
 import { isLocalMode } from "../firebase.js";
 import { createJudgeAccount } from "../auth.js";
@@ -110,8 +110,37 @@ export async function renderAdminJudges() {
       ...judges.map((judge) => {
         const assigned = new Set(judge.assignedItemIds || []);
         return el("div", { class: "card" }, [
-          el("div", { class: "title" }, judge.name),
-          el("div", { class: "subtitle", style: "margin-bottom:8px" }, judge.email || ""),
+          el("div", { class: "btn-row", style: "justify-content:space-between;align-items:flex-start" }, [
+            el("div", {}, [
+              el("div", { class: "title" }, judge.name),
+              el("div", { class: "subtitle" }, judge.email || ""),
+            ]),
+            el(
+              "button",
+              {
+                class: "btn danger",
+                style: "font-size:0.75rem;padding:6px 10px",
+                onclick: async () => {
+                  if (
+                    !confirm(
+                      `Remove ${judge.name}? They'll be signed out and can no longer score. ` +
+                        `Marks they already submitted are kept.`,
+                    )
+                  ) {
+                    return;
+                  }
+                  try {
+                    await deleteJudge(FEST_ID, judge.id, judge.authUid || null);
+                    toast(`${judge.name} removed`);
+                  } catch (err) {
+                    toast(friendlyAuthError(err));
+                  }
+                },
+              },
+              "Delete",
+            ),
+          ]),
+          el("div", { style: "height:8px" }),
           ...items.map((item) =>
             el("label", { class: "list-row" }, [
               el("input", {

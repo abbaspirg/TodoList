@@ -67,11 +67,15 @@ service cloud.firestore {
     // collection, so this grants no authority they didn't already have.
     match /roles/{uid} {
       allow read: if isSignedIn() && request.auth.uid == uid;
-      allow write: if isAdmin()
+      // create/update and delete are separate: on a delete there is no
+      // request.resource, so a single `allow write` carrying these field
+      // checks would reject every deletion.
+      allow create, update: if isAdmin()
         && request.resource.data.role in ['admin', 'judge']
         // A judge role must name the judges/ record it acts as, or the
         // scores rules below have nothing to check an assignment against.
         && (request.resource.data.role == 'admin' || request.resource.data.judgeId is string);
+      allow delete: if isAdmin();
     }
 
     match /fests/{festId} {

@@ -1,12 +1,33 @@
 import { el, mount, toast } from "../util.js";
-import { signIn, continueAsAdmin, continueAsJudge } from "../auth.js";
+import { signIn, signOut, continueAsAdmin, continueAsJudge } from "../auth.js";
 import { isLocalMode } from "../firebase.js";
 import { watchJudges } from "../data.js";
 import { navigate } from "../router.js";
 
-export async function renderLogin() {
+export async function renderLogin({ signedInWithoutRole = false } = {}) {
   if (isLocalMode()) {
     await renderLocalRolePicker();
+    return;
+  }
+
+  if (signedInWithoutRole) {
+    mount(
+      el("div", { class: "card", style: "max-width:380px;margin:40px auto" }, [
+        el("h1", { class: "page-title", style: "text-align:center" }, "No access yet"),
+        el(
+          "p",
+          {},
+          "You're signed in, but this account hasn't been given a role — or it was removed. " +
+            "Ask your fest admin to add you as a judge, then sign in again.",
+        ),
+        el("div", { class: "btn-row" }, [
+          el("button", { class: "btn secondary", onclick: signOut }, "Sign out"),
+        ]),
+        el("p", { style: "text-align:center;margin-top:12px" }, [
+          el("a", { href: "#/public", onclick: () => navigate("/public") }, "View live results"),
+        ]),
+      ]),
+    );
     return;
   }
 

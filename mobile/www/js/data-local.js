@@ -119,6 +119,18 @@ export async function addJudge(_festId, judge) {
 /** No-op locally: Local Test Mode has no accounts — a judge "signs in" by
  * picking their name from the list on the login screen (js/auth-local.js). */
 export async function setUserRole() {}
+
+export async function deleteJudge(_festId, judgeId) {
+  remove("judges", judgeId);
+  // Drop them from every item they were assigned to, so an item left
+  // waiting only on this judge can still be finalized. Their submitted
+  // scores are kept — see the Firestore version for why.
+  for (const item of getAll("items")) {
+    const assigned = item.assignedJudgeIds || [];
+    if (!assigned.includes(judgeId)) continue;
+    upsert("items", { id: item.id, assignedJudgeIds: assigned.filter((id) => id !== judgeId) });
+  }
+}
 export async function assignJudgeToItems(_festId, judgeId, itemIds) {
   // No Cloud Function / custom claims needed locally — the judge doc's
   // assignedItemIds *is* the authorization check in Local Test Mode (see

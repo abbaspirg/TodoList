@@ -54,6 +54,7 @@ export const withdrawRegistration = (...args) => impl().withdrawRegistration(...
 export const watchJudges = (...args) => impl().watchJudges(...args);
 export const addJudge = (...args) => impl().addJudge(...args);
 export const setUserRole = (...args) => impl().setUserRole(...args);
+export const deleteJudge = (...args) => impl().deleteJudge(...args);
 export const assignJudgeToItems = (...args) => impl().assignJudgeToItems(...args);
 
 export const watchScoresByJudge = (...args) => impl().watchScoresByJudge(...args);
