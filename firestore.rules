@@ -147,7 +147,13 @@ service cloud.firestore {
       allow create: if isJudge()
         && request.resource.data.judgeId == myJudgeId()
         && isAssignedTo(request.resource.data.festId, request.resource.data.itemId);
-      allow update, delete: if false;
+      // Never editable, by anyone — a judge must not be able to revise a
+      // mark after seeing what others gave. Admin deletion is allowed only
+      // so removing a student or an item can take the now-meaningless
+      // marks with it; a score whose registration is gone can never be
+      // interpreted again.
+      allow update: if false;
+      allow delete: if isAdmin();
     }
   }
 }

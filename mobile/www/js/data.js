@@ -46,6 +46,7 @@ export const watchItem = (...args) => impl().watchItem(...args);
 export const addItem = (...args) => impl().addItem(...args);
 export const updateItem = (...args) => impl().updateItem(...args);
 export const setItemStatus = (...args) => impl().setItemStatus(...args);
+export const deleteItem = (...args) => impl().deleteItem(...args);
 
 export const watchRegistrations = (...args) => impl().watchRegistrations(...args);
 export const registerStudent = (...args) => impl().registerStudent(...args);

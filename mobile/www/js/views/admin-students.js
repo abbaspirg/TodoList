@@ -1,5 +1,13 @@
 import { el, mount, initials, genId, toast, resizeImageFile } from "../util.js";
-import { watchStudents, watchGroups, watchCategories, addStudent, updateStudent, uploadStudentPhoto } from "../data.js";
+import {
+  watchStudents,
+  watchGroups,
+  watchCategories,
+  addStudent,
+  updateStudent,
+  deleteStudent,
+  uploadStudentPhoto,
+} from "../data.js";
 import { FEST_ID } from "../app-config.js";
 
 export async function renderAdminStudents() {
@@ -66,6 +74,33 @@ export async function renderAdminStudents() {
             el("div", { class: "subtitle" }, [s.className, category?.name].filter(Boolean).join(" · ")),
           ]),
           el("span", { class: "group-dot", style: `--group-color:${group?.colorHex || "#999"}` }),
+          el(
+            "button",
+            {
+              class: "btn danger",
+              style: "font-size:0.72rem;padding:5px 9px",
+              // The whole row opens the edit form; without this the
+              // confirm would be followed by the form popping open.
+              onclick: async (e) => {
+                e.stopPropagation();
+                if (
+                  !confirm(
+                    `Delete ${s.name}? Their registrations and any marks given to them are removed too. ` +
+                      `Results already published keep their own record.`,
+                  )
+                ) {
+                  return;
+                }
+                try {
+                  await deleteStudent(FEST_ID, s.id);
+                  toast(`${s.name} deleted`);
+                } catch (err) {
+                  toast(err?.message || "Couldn't delete that student.");
+                }
+              },
+            },
+            "Delete",
+          ),
         ]);
       }),
     );

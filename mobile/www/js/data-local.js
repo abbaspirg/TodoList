@@ -70,8 +70,17 @@ export async function addStudent(_festId, student) {
 export async function updateStudent(_festId, student) {
   upsert("students", student);
 }
+// Cascades match the Firestore backend — see its deleteStudent for why
+// registrations and scores go with the student.
 export async function deleteStudent(_festId, studentId) {
   remove("students", studentId);
+  const regIds = getAll("registrations")
+    .filter((r) => r.studentId === studentId)
+    .map((r) => r.id);
+  for (const id of regIds) remove("registrations", id);
+  for (const s of getAll("scores").filter((s) => regIds.includes(s.registrationId))) {
+    remove("scores", s.id);
+  }
 }
 export async function uploadStudentPhoto(_festId, _studentId, canvas) {
   // No Storage backend locally — the resized photo is stored inline as a
@@ -95,6 +104,12 @@ export async function updateItem(_festId, item) {
 }
 export async function setItemStatus(_festId, itemId, status) {
   upsert("items", { id: itemId, status });
+}
+export async function deleteItem(_festId, itemId) {
+  remove("items", itemId);
+  remove("results", itemId);
+  for (const r of getAll("registrations").filter((r) => r.itemId === itemId)) remove("registrations", r.id);
+  for (const s of getAll("scores").filter((s) => s.itemId === itemId)) remove("scores", s.id);
 }
 
 // --- Registrations ------------------------------------------------------

@@ -115,8 +115,26 @@ export async function addStudent(festId, student) {
 export async function updateStudent(festId, student) {
   await updateDoc(doc(db, "fests", festId, "students", student.id), student);
 }
+/** Removes a student along with their registrations and any marks on them.
+ *
+ * Leaving the registrations behind would keep the student appearing in
+ * judges' scoring lists after deletion, so they go too — and their scores
+ * with them, since a score pointing at a registration that no longer
+ * exists can never be interpreted again.
+ *
+ * Already-finalized results are unaffected: they denormalize studentName
+ * and the marks at the time, so past results stay intact and readable. */
 export async function deleteStudent(festId, studentId) {
-  await deleteDoc(doc(db, "fests", festId, "students", studentId));
+  const regsSnap = await getDocs(query(collection(db, "registrations"), where("studentId", "==", studentId)));
+  const scoreSnaps = await Promise.all(
+    regsSnap.docs.map((r) => getDocs(query(collection(db, "scores"), where("registrationId", "==", r.id)))),
+  );
+
+  const batch = writeBatch(db);
+  batch.delete(doc(db, "fests", festId, "students", studentId));
+  for (const reg of regsSnap.docs) batch.delete(reg.ref);
+  for (const snap of scoreSnaps) for (const s of snap.docs) batch.delete(s.ref);
+  await batch.commit();
 }
 export async function uploadStudentPhoto(_festId, _studentId, canvas) {
   // Stored inline on the student document as a data URL rather than in
@@ -147,6 +165,24 @@ export async function updateItem(festId, item) {
 }
 export async function setItemStatus(festId, itemId, status) {
   await updateDoc(doc(db, "fests", festId, "items", itemId), { status });
+}
+
+/** Removes an item and everything that only exists because of it: its
+ * registrations, the marks against them, and its result. Group standings
+ * are derived from results, so they correct themselves once the result
+ * document is gone — there's no stored tally to unwind. */
+export async function deleteItem(festId, itemId) {
+  const [regsSnap, scoresSnap] = await Promise.all([
+    getDocs(query(collection(db, "registrations"), where("itemId", "==", itemId))),
+    getDocs(query(collection(db, "scores"), where("itemId", "==", itemId))),
+  ]);
+
+  const batch = writeBatch(db);
+  batch.delete(doc(db, "fests", festId, "items", itemId));
+  batch.delete(doc(db, "fests", festId, "results", itemId));
+  for (const reg of regsSnap.docs) batch.delete(reg.ref);
+  for (const s of scoresSnap.docs) batch.delete(s.ref);
+  await batch.commit();
 }
 
 // --- Registrations (flat top-level collection, filtered by itemId) --------

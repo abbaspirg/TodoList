@@ -1,5 +1,5 @@
 import { el, mount, genId, toast } from "../util.js";
-import { watchItems, watchCategories, addItem, updateItem, setItemStatus } from "../data.js";
+import { watchItems, watchCategories, addItem, updateItem, setItemStatus, deleteItem } from "../data.js";
 import { FEST_ID } from "../app-config.js";
 
 export async function renderAdminItems() {
@@ -102,6 +102,29 @@ export async function renderAdminItems() {
                 "▶",
               )
             : null,
+          el(
+            "button",
+            {
+              class: "btn danger",
+              style: "font-size:0.72rem;padding:5px 9px",
+              onclick: async (e) => {
+                e.stopPropagation(); // the row itself opens the edit form
+                const warning =
+                  item.status === "completed"
+                    ? `Delete "${item.name}"? Its result, registrations and all marks are removed, ` +
+                      `and group standings will drop by the points it awarded.`
+                    : `Delete "${item.name}"? Its registrations and any marks so far are removed too.`;
+                if (!confirm(warning)) return;
+                try {
+                  await deleteItem(FEST_ID, item.id);
+                  toast(`"${item.name}" deleted`);
+                } catch (err) {
+                  toast(err?.message || "Couldn't delete that item.");
+                }
+              },
+            },
+            "Delete",
+          ),
         ]),
       ),
     );
