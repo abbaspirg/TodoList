@@ -1,5 +1,5 @@
 import { el, mount } from "../util.js";
-import { watchJudges, watchItems } from "../data.js";
+import { watchJudge, watchItems } from "../data.js";
 import { FEST_ID } from "../app-config.js";
 import { navigate } from "../router.js";
 import { signOut, currentUserId } from "../auth.js";
@@ -47,16 +47,26 @@ export async function renderJudgeQueue() {
     );
   }
 
+  // currentUserId() is the judges/{judgeId} document id in both backends —
+  // js/auth.js resolves it from roles/{uid}.judgeId against Firebase, and
+  // it's the judge's local id in Local Test Mode.
+  const judgeId = currentUserId();
+  if (!judgeId) {
+    listHost.replaceChildren(
+      el("div", { class: "card empty-state" }, "Couldn't tell which judge you are — sign out and back in."),
+    );
+    return;
+  }
+
   watchItems(FEST_ID, null, (i) => {
     items = i;
     render();
   });
-  watchJudges(FEST_ID, (judges) => {
-    // authUid matches a real Firebase Auth uid; falling back to the
-    // judge's own doc id matches Local Test Mode, where "signing in" as a
-    // judge uses that judge's local id directly (see js/auth-local.js).
-    const uid = currentUserId();
-    const me = judges.find((j) => j.authUid === uid || j.id === uid);
+  // Reads this judge's own record, not the whole collection: the rules let
+  // a judge read only their own, and Firestore rejects a collection query
+  // that isn't provably within what the rules allow rather than filtering
+  // it — which showed up as an empty "no items assigned" list.
+  watchJudge(FEST_ID, judgeId, (me) => {
     myAssignedIds = me?.assignedItemIds || [];
     render();
   });

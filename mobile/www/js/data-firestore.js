@@ -19,12 +19,29 @@ import {
   serverTimestamp,
   writeBatch,
 } from "./firebase.js";
-import { genId } from "./util.js";
+import { genId, toast } from "./util.js";
 import { computeRankings, computeGroupTotals, isFullyScored } from "./scoring.js";
+
+// Every real-time read goes through here rather than calling onSnapshot
+// directly. Firestore reports a rejected listener to the error callback
+// and then simply never fires — with no error handler that looks exactly
+// like "there is no data", which is how a rules problem once showed up as
+// an empty "no items assigned to you" list instead of an error. Surfacing
+// it costs nothing and turns a silent dead end into something diagnosable.
+function listen(ref, cb) {
+  return onSnapshot(ref, cb, (err) => {
+    console.error("Firestore listener failed:", ref, err);
+    toast(
+      err?.code === "permission-denied"
+        ? "You don't have permission to view this. Check the security rules are published."
+        : "Lost connection to the database — check your internet.",
+    );
+  });
+}
 
 // --- Fest settings (Madrasa name, shown on posters) ------------------------
 export function watchFestSettings(festId, cb) {
-  return onSnapshot(doc(db, "fests", festId), (d) => cb(d.exists() ? d.data() : {}));
+  return listen(doc(db, "fests", festId), (d) => cb(d.exists() ? d.data() : {}));
 }
 export async function updateFestSettings(festId, settings) {
   await setDoc(doc(db, "fests", festId), settings, { merge: true });
@@ -34,7 +51,7 @@ export async function updateFestSettings(festId, settings) {
 // A fest can have any number of groups (commonly 2, but some fests run 3+
 // teams) — Group is a plain admin-managed collection, not a fixed pair.
 export function watchGroups(festId, cb) {
-  return onSnapshot(collection(db, "fests", festId, "groups"), (snap) =>
+  return listen(collection(db, "fests", festId, "groups"), (snap) =>
     cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
   );
 }
@@ -53,14 +70,14 @@ export function watchGroupTotals(festId, cb) {
   // read by signed-out guests, whose rules only permit published documents
   // — an unfiltered query here is rejected outright rather than filtered,
   // so the whole screen would fail for them.
-  const unsubResults = onSnapshot(
+  const unsubResults = listen(
     query(collection(db, "fests", festId, "results"), where("published", "==", true)),
     (snap) => {
       results = snap.docs.map((d) => d.data());
       emit();
     },
   );
-  const unsubGroups = onSnapshot(collection(db, "fests", festId, "groups"), (snap) => {
+  const unsubGroups = listen(collection(db, "fests", festId, "groups"), (snap) => {
     groups = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     emit();
   });
@@ -82,7 +99,7 @@ export async function deleteGroup(festId, groupId) {
 
 // --- Categories ---------------------------------------------------------
 export function watchCategories(festId, cb) {
-  return onSnapshot(
+  return listen(
     query(collection(db, "fests", festId, "categories"), orderBy("sortOrder")),
     (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
   );
@@ -102,7 +119,7 @@ export async function deleteCategory(festId, categoryId) {
 export function watchStudents(festId, groupId, cb) {
   const base = collection(db, "fests", festId, "students");
   const q = groupId ? query(base, where("groupId", "==", groupId)) : base;
-  return onSnapshot(q, (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
+  return listen(q, (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
 }
 export async function addStudent(festId, student) {
   const id = student.id || genId();
@@ -149,10 +166,10 @@ export async function uploadStudentPhoto(_festId, _studentId, canvas) {
 export function watchItems(festId, categoryId, cb) {
   const base = collection(db, "fests", festId, "items");
   const q = categoryId ? query(base, where("categoryId", "==", categoryId)) : base;
-  return onSnapshot(q, (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
+  return listen(q, (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
 }
 export function watchItem(festId, itemId, cb) {
-  return onSnapshot(doc(db, "fests", festId, "items", itemId), (d) =>
+  return listen(doc(db, "fests", festId, "items", itemId), (d) =>
     cb(d.exists() ? { id: d.id, ...d.data() } : null),
   );
 }
@@ -188,7 +205,7 @@ export async function deleteItem(festId, itemId) {
 // --- Registrations (flat top-level collection, filtered by itemId) --------
 export function watchRegistrations(itemId, cb) {
   const q = query(collection(db, "registrations"), where("itemId", "==", itemId));
-  return onSnapshot(q, (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
+  return listen(q, (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
 }
 export async function registerStudent(registration) {
   const id = registration.id || `${registration.itemId}_${registration.studentId}`;
@@ -199,9 +216,20 @@ export async function withdrawRegistration(registrationId) {
 }
 
 // --- Judges -------------------------------------------------------------
+/** Admin-only in practice: the rules let a judge read just their own
+ * record, and Firestore rejects an unfiltered collection query rather than
+ * trimming it to the readable documents. Judges use watchJudge below. */
 export function watchJudges(festId, cb) {
-  return onSnapshot(collection(db, "fests", festId, "judges"), (snap) =>
+  return listen(collection(db, "fests", festId, "judges"), (snap) =>
     cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+  );
+}
+
+/** A single judge's own record — what the Judge Panel needs to know which
+ * items it's assigned to, and readable by that judge under the rules. */
+export function watchJudge(festId, judgeId, cb) {
+  return listen(doc(db, "fests", festId, "judges", judgeId), (d) =>
+    cb(d.exists() ? { id: d.id, ...d.data() } : null),
   );
 }
 export async function addJudge(festId, judge) {
@@ -273,7 +301,7 @@ export function watchScoresByJudge(itemId, judgeId, cb) {
     where("itemId", "==", itemId),
     where("judgeId", "==", judgeId),
   );
-  return onSnapshot(q, (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
+  return listen(q, (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
 }
 export async function submitScore(score) {
   // Deterministic doc ID gives idempotent double-submit protection for
@@ -343,10 +371,10 @@ export function watchPublishedResults(festId, cb) {
     where("published", "==", true),
     orderBy("finalizedAt", "desc"),
   );
-  return onSnapshot(q, (snap) => cb(snap.docs.map((d) => ({ itemId: d.id, ...d.data() }))));
+  return listen(q, (snap) => cb(snap.docs.map((d) => ({ itemId: d.id, ...d.data() }))));
 }
 export function watchAllResults(festId, cb) {
-  return onSnapshot(collection(db, "fests", festId, "results"), (snap) =>
+  return listen(collection(db, "fests", festId, "results"), (snap) =>
     cb(snap.docs.map((d) => ({ itemId: d.id, ...d.data() }))),
   );
 }

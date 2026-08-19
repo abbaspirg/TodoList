@@ -128,6 +128,9 @@ export async function withdrawRegistration(registrationId) {
 export function watchJudges(_festId, cb) {
   return subscribe("judges", cb);
 }
+export function watchJudge(_festId, judgeId, cb) {
+  return subscribe("judges", (list) => cb(list.find((j) => j.id === judgeId) ?? null));
+}
 export async function addJudge(_festId, judge) {
   upsert("judges", { ...judge, id: judge.id || genId(), assignedItemIds: [] });
 }

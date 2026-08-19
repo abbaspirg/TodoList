@@ -53,6 +53,7 @@ export const registerStudent = (...args) => impl().registerStudent(...args);
 export const withdrawRegistration = (...args) => impl().withdrawRegistration(...args);
 
 export const watchJudges = (...args) => impl().watchJudges(...args);
+export const watchJudge = (...args) => impl().watchJudge(...args);
 export const addJudge = (...args) => impl().addJudge(...args);
 export const setUserRole = (...args) => impl().setUserRole(...args);
 export const deleteJudge = (...args) => impl().deleteJudge(...args);
