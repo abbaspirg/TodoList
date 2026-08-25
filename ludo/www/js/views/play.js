@@ -1,6 +1,6 @@
 import { el, toast } from "../util.js";
 import { colorForSeat } from "../colors.js";
-import { legalMoves, seatProgress } from "../game.js";
+import { legalMoves, seatProgress, YARD_TRIES } from "../game.js";
 import { drawBoard, hitTest, getHitTargets } from "../render.js";
 import { animateMove, animateDie, diffBoards, cancelAnimation } from "../animate.js";
 import { sounds, isMuted, toggleMuted } from "../sound.js";
@@ -40,6 +40,7 @@ export function resetPlayView() {
   animating = false;
   currentContext = null;
   turnKey = null;
+  lastAnimatedRoll = null;
   generation++;
 }
 
@@ -258,7 +259,7 @@ function renderChrome(context, { mySeat, animating: isWalking }) {
       title: canRoll ? "Roll the die" : `${nameFor(game.turn)}'s turn`,
       onclick: canRoll ? onRoll : explainDie,
     },
-    DIE_FACES[game.dice ?? 0],
+    DIE_FACES[game.dice ?? game.lastRoll ?? 0],
   );
 
   const mainAction = () => {
@@ -329,19 +330,83 @@ function renderChrome(context, { mySeat, animating: isWalking }) {
 }
 
 /** The die is animated only when a NEW roll arrives, so a redraw for some
- * other reason doesn't set it tumbling again. */
-let lastAnimatedDie = null;
+ * other reason doesn't set it tumbling again.
+ *
+ * Keyed on rollCount, not on the dice value: a roll that leaves no legal
+ * move clears `dice` and passes the turn in the same step, so keying on the
+ * value meant those rolls — five in six at the start of a game, when every
+ * token is still in the yard — never animated and never made a sound. That
+ * is what "the die doesn't roll, it just moves to the next player" was.
+ * Rolling the same number twice running was invisible for the same reason. */
+let lastAnimatedRoll = null;
 export function maybeAnimateDie(game) {
   const die = document.getElementById("die");
-  if (!die || game.dice === null) {
-    lastAnimatedDie = null;
+  if (!die) return;
+  const count = game.rollCount ?? 0;
+
+  if (count === 0) {
+    // A freshly dealt game. Anchoring at zero means the very first roll of
+    // the game still animates.
+    lastAnimatedRoll = 0;
     return;
   }
-  const key = `${game.turn}-${game.dice}-${game.log.length}`;
-  if (key === lastAnimatedDie) return;
-  lastAnimatedDie = key;
+  if (lastAnimatedRoll === null) {
+    // Joined or resumed part-way through: adopt the count rather than
+    // replaying every roll that already happened.
+    lastAnimatedRoll = count;
+    return;
+  }
+  if (count === lastAnimatedRoll) return;
+  lastAnimatedRoll = count;
+
   sounds.diceRoll();
-  animateDie(die, game.dice, DIE_FACES);
+  animateDie(die, game.lastRoll, DIE_FACES);
+
+  // A turn that ended without a move needs saying out loud, or it reads as
+  // the app ignoring the tap — which is exactly how it was reported.
+  if (!game.rollNote) return;
+
+  // A retry keeps the turn, so the roller is the player still on it.
+  const retry = game.rollNote === "retry";
+  const roller = retry ? game.turn : previousSeatOf(game);
+  const rollerName = nameOfSeat(game, roller);
+  const why =
+    game.rollNote === "three-sixes"
+      ? "three sixes — turn lost!"
+      : retry
+        ? `roll again for a 6 (${game.yardTries} of ${YARD_TRIES})`
+        : allTokensInYard(game, roller)
+          ? "needs a 6 to come out"
+          : "no move possible";
+
+  // Hold the story on screen until the die has landed and been read.
+  // Without this the status line flips to the next player instantly, while
+  // the die is still tumbling, so the roll appears to have been ignored.
+  const who = document.querySelector("#gameStatus .who");
+  if (who) who.textContent = `${rollerName} rolled ${game.lastRoll} — ${why}`;
+  setTimeout(() => toast(`Rolled ${game.lastRoll} — ${why}`), 640);
+  setTimeout(refreshChrome, 1900);
+}
+
+/** Names come from the room, which the engine knows nothing about; fall
+ * back to the seat number when this is called without one. */
+function nameOfSeat(game, seat) {
+  const players = currentContext?.room?.players || [];
+  return players.find((p) => p.seat === seat)?.name || `Player ${seat + 1}`;
+}
+
+/** Whose roll it was: the turn has already moved on by the time the screen
+ * sees a roll that ended without a move. */
+function previousSeatOf(game) {
+  for (let step = 1; step <= game.seats; step++) {
+    const seat = (game.turn - step + game.seats * 2) % game.seats;
+    if (!game.finished.includes(seat)) return seat;
+  }
+  return game.turn;
+}
+
+function allTokensInYard(game, seat) {
+  return (game.tokens[seat] || []).every((pos) => pos < 0);
 }
 
 function onToggleSound() {

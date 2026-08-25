@@ -151,6 +151,20 @@ export function createGame(seats, { seed = Date.now() } = {}) {
     seed,
     turn: 0,
     dice: null,
+    // The number most recently rolled by anyone, kept even once the turn
+    // has moved on. Without it, a roll that leaves no legal move was
+    // invisible: dice went from null straight back to null and the die
+    // face never changed, so rolling looked like it had done nothing.
+    lastRoll: null,
+    // Bumped on every roll, so the screen can tell two identical rolls
+    // apart and animate both.
+    rollCount: 0,
+    // Why the last roll ended the turn without a move: "no-move",
+    // "three-sixes", "retry", or null.
+    rollNote: null,
+    // Failed attempts to roll a six this turn while every token is still
+    // in the yard — see YARD_TRIES.
+    yardTries: 0,
     // Consecutive sixes by the player currently on turn. Three in a row
     // forfeits the turn — the classic rule that stops a lucky streak from
     // running forever.
@@ -180,6 +194,19 @@ export function nextActiveSeat(state, from) {
 
 function activeSeatCount(state) {
   return state.seats - state.finished.length;
+}
+
+/** Attempts to roll a six when every one of your tokens is still in the
+ * yard. With one attempt a player has a 1-in-6 chance of doing anything at
+ * all on their turn, so the opening of a game is mostly watching the turn
+ * bounce between people — which is precisely how it was reported ("it just
+ * moves to the next player"). Three attempts takes that to 42% and matches
+ * the common app implementations. Only applies from the yard: once a token
+ * is on the board every roll is playable anyway. */
+export const YARD_TRIES = 3;
+
+function allInYard(state, seat) {
+  return state.tokens[seat].every((pos) => pos === YARD);
 }
 
 /** Token indices the player on turn may legally move with the current dice.
@@ -218,19 +245,40 @@ export function applyRoll(state, dice) {
   }
 
   const sixStreak = dice === 6 ? state.sixStreak + 1 : 0;
-  const next = { ...state, dice, sixStreak };
+  const next = {
+    ...state,
+    dice,
+    sixStreak,
+    lastRoll: dice,
+    rollCount: (state.rollCount ?? 0) + 1,
+    rollNote: null,
+  };
 
   if (sixStreak >= 3) {
     return endTurn(
-      { ...next, dice: null, sixStreak: 0 },
+      { ...next, dice: null, sixStreak: 0, rollNote: "three-sixes" },
       `Seat ${state.turn} rolled a third six — turn forfeited`,
     );
   }
 
   if (legalMoves(next).length === 0) {
-    return endTurn({ ...next, dice: null }, `Seat ${state.turn} rolled ${dice} — no legal move`);
+    // Stuck in the yard: allow another attempt at a six rather than ending
+    // the turn on the first miss.
+    const tries = (state.yardTries ?? 0) + 1;
+    if (allInYard(state, state.turn) && tries < YARD_TRIES) {
+      return log(
+        { ...next, dice: null, yardTries: tries, rollNote: "retry" },
+        `Seat ${state.turn} rolled ${dice} — try ${tries} of ${YARD_TRIES}`,
+      );
+    }
+    // The turn passes, but `lastRoll` and `rollNote` survive so the screen
+    // can still show what was rolled and say why nothing happened.
+    return endTurn(
+      { ...next, dice: null, rollNote: "no-move" },
+      `Seat ${state.turn} rolled ${dice} — no legal move`,
+    );
   }
-  return log(next, `Seat ${state.turn} rolled ${dice}`);
+  return log({ ...next, yardTries: 0 }, `Seat ${state.turn} rolled ${dice}`);
 }
 
 /** Plays one token forward by the current dice. */
@@ -277,7 +325,7 @@ export function applyMove(state, tokenIndex) {
   }
 
   next = log(next, `Seat ${seat} moved ${describe(from)}→${describe(to)}${messages.length ? " — " + messages.join(", ") : ""}`);
-  next = { ...next, dice: null };
+  next = { ...next, dice: null, rollNote: null };
 
   // One player left standing ends the game; they take the last place.
   if (activeSeatCount(next) <= 1) {
@@ -314,6 +362,7 @@ function endTurn(state, message) {
     turn: nextActiveSeat(next, next.turn),
     dice: null,
     sixStreak: 0,
+    yardTries: 0,
   };
 }
 

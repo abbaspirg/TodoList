@@ -170,11 +170,93 @@ check("only a six releases a token from the yard", () => {
   eq(legalMoves({ ...g, dice: 6 }), [0, 1, 2, 3], "dice 6 from an all-yard position");
 });
 
-check("a roll with no legal move passes the turn immediately", () => {
+check("stuck in the yard, a player gets three attempts at a six", () => {
+  let g = createGame(4);
+  g = applyRoll(g, 3);
+  eq(g.turn, 0, "still your turn after the first miss");
+  eq(g.rollNote, "retry", "and it says to try again");
+  g = applyRoll(g, 2);
+  eq(g.turn, 0, "still your turn after the second miss");
+  g = applyRoll(g, 4);
+  eq(g.turn, 1, "the turn passes after the third");
+  eq(g.rollNote, "no-move", "and says why");
+});
+
+check("a six during those attempts is playable, and resets the count", () => {
+  let g = createGame(4);
+  g = applyRoll(g, 3);
+  eq(g.yardTries, 1, "one attempt used");
+  g = applyRoll(g, 6);
+  eq(g.dice, 6, "the six is playable");
+  eq(g.yardTries, 0, "attempts reset");
+  eq(legalMoves(g), [0, 1, 2, 3], "all four tokens can come out");
+});
+
+check("the extra attempts only apply while every token is in the yard", () => {
   const g = createGame(4);
-  const after = applyRoll(g, 3);
-  eq(after.turn, 1, "turn after a dead roll");
-  eq(after.dice, null, "dice cleared after a dead roll");
+  g.tokens[0][0] = 5; // one already on the board
+  // 3 would move it, so use a roll that genuinely has no move: the token
+  // is 2 short of the centre, and nothing else can come out.
+  const end = finishPos(g);
+  g.tokens[0] = [end - 2, end, end, end];
+  const after = applyRoll(g, 5); // overshoots the centre
+  eq(after.turn, 1, "the turn passes on the first miss");
+  eq(after.rollNote, "no-move", "no retry offered");
+});
+
+check("attempts reset when the turn comes back round", () => {
+  let g = createGame(2);
+  g = applyRoll(g, 3);
+  g = applyRoll(g, 3);
+  g = applyRoll(g, 3); // turn passes to seat 1
+  eq(g.turn, 1, "seat 1's turn");
+  eq(g.yardTries, 0, "counter cleared for the new player");
+});
+
+// This is what "the die doesn't roll, it just moves to the next player"
+// actually was: with every token in the yard, five rolls in six leave no
+// legal move, and the rolled number was thrown away with the turn — so the
+// die face never changed and rolling looked like it had done nothing.
+check("a roll that leaves no move still reports what was rolled", () => {
+  let g = createGame(4);
+  const first = applyRoll(g, 3);
+  eq(first.lastRoll, 3, "the number rolled must be visible on the first miss");
+  eq(first.rollNote, "retry", "which is a retry, not the end of the turn");
+  eq(first.rollCount, 1, "and counts as a roll");
+
+  // ...and on the miss that does end the turn.
+  g = applyRoll(applyRoll(applyRoll(g, 3), 2), 4);
+  eq(g.lastRoll, 4, "the number rolled must survive the turn passing");
+  eq(g.rollNote, "no-move", "and say why the turn passed");
+  eq(g.rollCount, 3, "every roll counted");
+});
+
+check("every roll is counted, so two identical rolls are distinguishable", () => {
+  let g = createGame(4);
+  g = applyRoll(g, 3); // passes the turn
+  g = applyRoll(g, 3); // next player, same number
+  eq(g.rollCount, 2, "roll count");
+  eq(g.lastRoll, 3, "last roll");
+});
+
+check("a third six reports itself rather than vanishing", () => {
+  let g = createGame(4);
+  g.tokens[0][0] = 5;
+  g = applyRoll(g, 6);
+  g = applyMove(g, 0);
+  g = applyRoll(g, 6);
+  g = applyMove(g, 0);
+  const after = applyRoll(g, 6);
+  eq(after.lastRoll, 6, "the third six is still shown");
+  eq(after.rollNote, "three-sixes", "and explained");
+});
+
+check("playing a move clears the explanation", () => {
+  const g = applyRoll(createGame(4), 6);
+  eq(g.rollNote, null, "a playable roll has nothing to explain");
+  const after = applyMove(g, 0);
+  eq(after.rollNote, null, "and still nothing after the move");
+  eq(after.lastRoll, 6, "but the number rolled remains on the die");
 });
 
 check("a token leaving the yard lands on its own start square", () => {

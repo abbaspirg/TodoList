@@ -88,7 +88,11 @@ slower first load — and tuning a sound means changing a number.
 
 Standard Indian Ludo:
 
-- Roll a **6** to bring a token out of the yard.
+- Roll a **6** to bring a token out of the yard. While *all four* of your
+  tokens are still in the yard you get **three attempts** at a six, rather
+  than losing the turn on the first miss. With one attempt a player has a
+  1-in-6 chance of doing anything at all on their turn, so the opening was
+  mostly watching the turn bounce between people; three takes it to 42%.
 - A **6**, a **capture**, or **getting a token home** each earn another roll.
 - **Three sixes in a row** forfeits the turn, and the third roll is not played.
 - Landing on an opponent sends it back to its yard — unless it is on a **★
