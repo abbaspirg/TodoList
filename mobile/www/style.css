@@ -1,0 +1,435 @@
+:root {
+  --bg: #f4f6f5;
+  --surface: #ffffff;
+  --text: #1c2521;
+  --text-muted: #6b7770;
+  --border: #e4e8e6;
+  --primary: #0f6e4f;
+  --primary-dark: #0b5a40;
+  --danger: #c0392b;
+  --radius: 14px;
+  --shadow: 0 2px 10px rgba(20, 30, 25, 0.06);
+  --chip-ongoing-bg: #fff4d6;
+  --chip-ongoing-text: #8a6400;
+  --chip-ongoing-border: #f2df9e;
+  --chip-completed-bg: #dff3e6;
+  --chip-completed-border: #b9e5cc;
+}
+
+/* Dark mode — js/theme.js sets data-theme="dark"/"light" on <html> when the
+   user picks explicitly (persisted in localStorage); with neither set, the
+   OS-level prefers-color-scheme decides, same as every other themed app. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1512;
+    --surface: #18211d;
+    --text: #edf2ef;
+    --text-muted: #9baba3;
+    --border: #2b3733;
+    --primary: #2fa876;
+    --primary-dark: #278f65;
+    --danger: #e0584a;
+    --shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+    --chip-ongoing-bg: #3a3218;
+    --chip-ongoing-text: #f2d17a;
+    --chip-ongoing-border: #5a4c22;
+    --chip-completed-bg: #16332480;
+    --chip-completed-border: #2f5b40;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #0e1512;
+  --surface: #18211d;
+  --text: #edf2ef;
+  --text-muted: #9baba3;
+  --border: #2b3733;
+  --primary: #2fa876;
+  --primary-dark: #278f65;
+  --danger: #e0584a;
+  --shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+  --chip-ongoing-bg: #3a3218;
+  --chip-ongoing-text: #f2d17a;
+  --chip-ongoing-border: #5a4c22;
+  --chip-completed-bg: #163324;
+  --chip-completed-border: #2f5b40;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  /* Capacitor's Android template draws the WebView edge-to-edge behind the
+     status bar/camera cutout by default (mandatory on newer Android
+     targets) — env(safe-area-inset-*) reports the real inset here because
+     index.html's viewport meta has viewport-fit=cover. Without this the
+     header, and anything in it, renders under the system status bar. */
+  padding: calc(14px + env(safe-area-inset-top, 0px)) calc(16px + env(safe-area-inset-right, 0px)) 14px
+    calc(16px + env(safe-area-inset-left, 0px));
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 1.05rem;
+  white-space: nowrap;
+}
+
+.nav-links {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  flex: 1;
+  scrollbar-width: none;
+}
+.nav-links::-webkit-scrollbar { display: none; }
+
+.nav-links a {
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  text-decoration: none;
+  color: var(--text-muted);
+  white-space: nowrap;
+  background: transparent;
+}
+.nav-links a.active {
+  background: var(--primary);
+  color: #fff;
+}
+
+.icon-btn {
+  border: none;
+  background: var(--bg);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 1rem;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+#backBtn {
+  font-size: 1.4rem;
+  font-weight: 700;
+  line-height: 1;
+  padding: 6px 12px 8px;
+}
+
+.view {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 16px;
+  margin-bottom: 14px;
+}
+
+h1.page-title {
+  font-size: 1.25rem;
+  margin: 4px 0 16px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+.field label {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+/* Applies to every text-like control app-wide, not just ones wrapped in
+   `.field` (several views use a bare search/filter input or select) — a
+   bare control would otherwise fall back to the browser's native white
+   box, which only happened to look right in light mode. Special input
+   types (color/range/file/checkbox/...) keep their native rendering
+   instead, since this padding/border squashes those. */
+input:not([type="color"]):not([type="range"]):not([type="file"]):not([type="checkbox"]):not([type="radio"]):not([type="button"]):not([type="submit"]),
+select,
+textarea {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 0.95rem;
+  background: var(--bg);
+  color: var(--text);
+}
+
+input[type="color"] {
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  height: 40px;
+  width: 64px;
+  background: var(--surface);
+}
+
+.btn {
+  border: none;
+  border-radius: 10px;
+  padding: 10px 16px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  background: var(--primary);
+  color: #fff;
+}
+.btn:hover { background: var(--primary-dark); }
+.btn.secondary {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+.btn.danger { background: var(--danger); }
+.btn:disabled { opacity: 0.5; cursor: default; }
+.btn.secondary.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+.btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* Three of these sit on every attendance row, so they have to stay narrow
+   enough not to push the student's name off a phone screen. */
+.attendance-btn {
+  min-width: 34px;
+  padding: 8px 0;
+  text-align: center;
+  font-size: 0.8rem;
+}
+
+.fab {
+  position: fixed;
+  right: calc(18px + env(safe-area-inset-right, 0px));
+  bottom: calc(22px + env(safe-area-inset-bottom, 0px));
+  border-radius: 999px;
+  padding: 14px 20px;
+  box-shadow: 0 6px 16px rgba(15, 110, 79, 0.35);
+  z-index: 5;
+}
+
+.list { list-style: none; margin: 0; padding: 0; }
+.list-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 4px;
+  border-bottom: 1px solid var(--border);
+}
+.list-row:last-child { border-bottom: none; }
+.list-row .title { flex: 1; font-weight: 600; }
+.list-row .subtitle { font-size: 0.8rem; color: var(--text-muted); }
+
+.group-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--group-color, #999);
+}
+
+.chip {
+  display: inline-block;
+  font-size: 0.72rem;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+}
+.chip.status-ongoing { background: var(--chip-ongoing-bg); color: var(--chip-ongoing-text); border-color: var(--chip-ongoing-border); }
+.chip.status-completed { background: var(--chip-completed-bg); color: var(--primary-dark); border-color: var(--chip-completed-border); }
+
+.empty-state {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 32px 12px;
+}
+
+.avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  color: var(--text-muted);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+.grid-nav {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+.grid-nav a {
+  text-decoration: none;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px 10px;
+  text-align: center;
+  font-weight: 600;
+  font-size: 0.9rem;
+  box-shadow: var(--shadow);
+}
+.grid-nav .icon { font-size: 1.6rem; display: block; margin-bottom: 6px; }
+
+.score-bar-row { margin-bottom: 12px; }
+.score-bar-track {
+  height: 10px;
+  border-radius: 6px;
+  background: var(--bg);
+  overflow: hidden;
+}
+.score-bar-fill { height: 100%; border-radius: 6px; background: var(--group-color, var(--primary)); }
+
+.leaderboard-columns {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  gap: 28px;
+  padding: 24px 0;
+}
+.leaderboard-col { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.leaderboard-bar {
+  width: 72px;
+  border-radius: 12px 12px 0 0;
+  background: var(--group-color, var(--primary));
+  transition: height 0.6s ease;
+}
+.leaderboard-points { font-size: 1.6rem; font-weight: 800; color: var(--group-color, var(--primary)); }
+
+.medal-row { display: flex; gap: 16px; flex-wrap: wrap; }
+.medal-card { text-align: center; width: 96px; }
+.medal-card .medal { font-size: 1.6rem; }
+.medal-card .name { font-size: 0.8rem; font-weight: 600; margin-top: 4px; }
+.medal-card .group { font-size: 0.72rem; color: var(--text-muted); }
+
+.slider-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.slider-row label { width: 100px; font-size: 0.82rem; }
+.slider-row input[type="range"] { flex: 1; }
+.slider-row .value { width: 26px; text-align: right; font-weight: 600; }
+
+/* Overlay dialog — see js/modal.js. Sits above the header (10) and the FAB
+   (5) but below the toast (50), so a "Saved" confirmation is still readable
+   while a dialog is open. */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: calc(16px + env(safe-area-inset-top, 0px)) 12px calc(16px + env(safe-area-inset-bottom, 0px));
+  background: rgba(8, 14, 11, 0.55);
+}
+
+.modal-card {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 520px;
+  /* The body scrolls inside the card rather than the card growing past the
+     screen — on a phone the student form plus an open keyboard is taller
+     than the viewport. */
+  max-height: 100%;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
+  animation: modal-in 0.16s ease-out;
+}
+
+@keyframes modal-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .modal-card { animation: none; }
+}
+
+.modal-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.modal-title {
+  flex: 1;
+  margin: 0;
+  font-size: 1.05rem;
+}
+.modal-body {
+  padding: 16px;
+  overflow-y: auto;
+}
+/* Nothing behind the dialog should scroll while it's open. */
+body.modal-open { overflow: hidden; }
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  /* Always a dark pill regardless of theme, not tied to --text (which
+     flips light in dark mode and would wreck contrast here). */
+  background: #1c2521;
+  color: #fff;
+  padding: 10px 18px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  z-index: 50;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  pointer-events: none;
+}
+.toast.show { opacity: 1; }
+
+.footer-note {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  margin-top: 12px;
+}
+
+#posterCanvas {
+  width: 100%;
+  max-width: 480px;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  display: block;
+  margin: 0 auto;
+}

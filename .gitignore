@@ -1,0 +1,41 @@
+# Flutter/Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+*.g.dart
+*.freezed.dart
+
+# Platform build dirs
+android/.gradle/
+android/app/debug
+android/app/profile
+android/app/release
+ios/Flutter/Generated.xcconfig
+ios/Pods/
+ios/.symlinks/
+macos/Pods/
+web/
+
+# Firebase
+functions/node_modules/
+functions/lib/
+.firebase/
+firebase-debug.log
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Misc
+.DS_Store
+
+# Ludo Circle
+ludo/node_modules/
+ludo/android/
+ludo/www/_harness.html
+ludo/www/_preview.html

@@ -1,0 +1,24 @@
+{
+  "name": "ludo-circle",
+  "version": "1.0.0",
+  "description": "Ludo for 2 to 8 players with live voice chat, wrapped for Android with Capacitor.",
+  "private": true,
+  "scripts": {
+    "test": "node test/game.test.mjs",
+    "harness": "node test/make-harness.mjs",
+    "build:plugins": "esbuild plugins-src/capacitor-plugins.js --bundle --format=iife --outfile=www/js/vendor/capacitor-plugins.js",
+    "sync": "npm run build:plugins && cap sync android",
+    "assets": "capacitor-assets generate --android",
+    "open:android": "cap open android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/app": "^8.1.1",
+    "@capacitor/cli": "^8.5.0",
+    "@capacitor/core": "^8.5.0"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "esbuild": "^0.24.2"
+  }
+}

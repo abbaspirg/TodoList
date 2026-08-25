@@ -1,0 +1,110 @@
+name: Deploy web app
+
+# Publishes both web apps in this repo to GitHub Pages, which allows only
+# one site per repository — so they are assembled into a single artifact:
+#
+#   /        the Madrasa Meelad Fest Manager   (mobile/www)
+#   /ludo/   Ludo Circle                        (ludo/www)
+#
+# The fest app keeps the root URL it has always had, so anyone who has
+# already installed it from that link is unaffected.
+#
+# Each app's Firebase project is baked in at deploy time from a repository
+# *variable* (Settings -> Secrets and variables -> Actions -> Variables).
+# They are variables rather than secrets because a Firebase web config is
+# not secret — it ships in the source of every Firebase web app, and the
+# firestore.rules files are what actually control access. Actions' secret
+# masking would also corrupt the JSON. Without a variable set, that app
+# still deploys and simply shows its setup screen.
+
+on:
+  push:
+    branches: ["main", "claude/**"]
+    paths:
+      - "mobile/www/**"
+      - "ludo/www/**"
+      - "ludo/scripts/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never let two deploys race; a queued one supersedes an in-flight one.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Bake the Firebase project into the fest app
+        if: vars.FIREBASE_CONFIG != ''
+        working-directory: mobile
+        env:
+          INSTITUTION_NAME: ${{ vars.INSTITUTION_NAME }}
+          FIREBASE_CONFIG: ${{ vars.FIREBASE_CONFIG }}
+        run: node scripts/write-build-config.mjs
+
+      # Falls back to the fest app's project when LUDO_FIREBASE_CONFIG is
+      # unset, so one Firebase project can serve both apps — they use
+      # separate collections and separate rules files.
+      - name: Bake the Firebase project into Ludo Circle
+        if: vars.LUDO_FIREBASE_CONFIG != '' || vars.FIREBASE_CONFIG != ''
+        working-directory: ludo
+        env:
+          FIREBASE_CONFIG: ${{ vars.LUDO_FIREBASE_CONFIG || vars.FIREBASE_CONFIG }}
+          TURN_URLS: ${{ vars.TURN_URLS }}
+          TURN_USERNAME: ${{ vars.TURN_USERNAME }}
+          TURN_CREDENTIAL: ${{ secrets.TURN_CREDENTIAL }}
+        run: node scripts/write-build-config.mjs
+
+      - name: Check the Ludo rules engine
+        run: node ludo/test/game.test.mjs
+
+      - name: Assemble the site
+        run: |
+          mkdir -p _site
+          cp -r mobile/www/. _site/
+          mkdir -p _site/ludo
+          cp -r ludo/www/. _site/ludo/
+          # The test harness is generated locally and must never ship.
+          rm -f _site/ludo/_harness.html _site/ludo/_preview.html
+
+      - name: Report configuration state
+        run: |
+          if [ -n "${{ vars.FIREBASE_CONFIG }}" ]; then
+            echo "Fest app: Firebase project baked in."
+          else
+            echo "::warning::FIREBASE_CONFIG is not set — the fest app will ask each visitor to paste a config."
+          fi
+          if [ -n "${{ vars.LUDO_FIREBASE_CONFIG }}${{ vars.FIREBASE_CONFIG }}" ]; then
+            echo "Ludo: Firebase project baked in."
+          else
+            echo "::warning::No config for Ludo — it will show its setup screen."
+          fi
+          if [ -z "${{ vars.TURN_URLS }}" ]; then
+            echo "::notice::No TURN relay configured for Ludo voice. Most players will connect anyway;"
+            echo "::notice::some pairs on strict mobile networks won't. See ludo/README.md."
+          fi
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - id: deployment
+        uses: actions/deploy-pages@v4

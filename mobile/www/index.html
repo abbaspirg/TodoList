@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Madrasa Fest Manager</title>
+<!-- Lets Edge/Chrome install the hosted app on Windows (and Android/iOS)
+     with a proper name and icon — see README "Running it on a computer".
+     Harmless inside the Capacitor WebView, which ignores it. -->
+<link rel="manifest" href="manifest.webmanifest" />
+<link rel="icon" href="icons/icon-192.png" />
+<link rel="apple-touch-icon" href="icons/icon-192.png" />
+<meta name="theme-color" content="#0f6e4f" media="(prefers-color-scheme: light)" />
+<meta name="theme-color" content="#0e1512" media="(prefers-color-scheme: dark)" />
+<!-- Applies a saved light/dark choice before style.css's first paint, so a
+     device saved on dark doesn't flash light first — js/theme.js (loaded
+     later, as an ES module) owns the toggle button but reuses this same
+     "appTheme" key/attribute. -->
+<script>
+  (function () {
+    try {
+      var t = localStorage.getItem("appTheme");
+      if (t === "light" || t === "dark") document.documentElement.setAttribute("data-theme", t);
+    } catch (e) {}
+  })();
+</script>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="app-header">
+    <button id="backBtn" class="icon-btn" title="Back" hidden>‹</button>
+    <div class="brand">
+      <span class="brand-icon">🕌</span>
+      <span>Madrasa Fest</span>
+    </div>
+    <nav id="navLinks" class="nav-links"></nav>
+    <button id="themeToggleBtn" class="icon-btn" title="Toggle theme">🌙</button>
+    <button id="signOutBtn" class="icon-btn" title="Sign out" hidden>⎋</button>
+  </header>
+
+  <main id="view" class="view"></main>
+
+  <p class="footer-note">Madrasa Meelad Fest Manager</p>
+
+  <!-- Built by `npm run build:plugins` (esbuild) — the one bundled file in
+       this app, since Capacitor's native plugin packages are npm/ESM-only.
+       Must load before js/app.js so js/views/poster.js can read
+       window.CapPlugins. See mobile/plugins-src/capacitor-plugins.js. -->
+  <script src="js/vendor/capacitor-plugins.js"></script>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
